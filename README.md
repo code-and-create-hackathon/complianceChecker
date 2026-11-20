@@ -31,7 +31,7 @@ flowchart LR
     A -->|if isSafe = true| C[💬 Target LLM Chat]
 ```
 
-## AInfra-structure - first version
+## Infra-structure - first version
 
 
 ```mermaid
