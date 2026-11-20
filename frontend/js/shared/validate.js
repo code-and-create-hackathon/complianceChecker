@@ -28,7 +28,7 @@ function checkOnlyFields(obj, allowed, errors) {
 }
 
 /** Length in Unicode characters (code points), not UTF-16 code units: an emoji counts as 1. */
-function charLength(value) {
+export function charLength(value) {
   return [...value].length;
 }
 

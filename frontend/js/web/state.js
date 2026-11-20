@@ -8,8 +8,8 @@ export const state = {
   complianceFiles: [],
   /** A check is running. */
   busy: false,
-  /** Files are still being read. */
-  readingFiles: false,
+  /** Number of file batches still being read. */
+  pendingFileReads: 0,
 };
 
 const submitButton = $("check-submit");
@@ -17,7 +17,7 @@ const submitLabel = submitButton.querySelector(".button-label");
 
 /** Checking is only possible while no check is running and no files are being read. */
 export function canSubmit() {
-  return !state.busy && !state.readingFiles;
+  return !state.busy && state.pendingFileReads === 0;
 }
 
 function updateSubmitButton() {
@@ -30,7 +30,13 @@ export function setBusy(value) {
   updateSubmitButton();
 }
 
-export function setReadingFiles(value) {
-  state.readingFiles = value;
+/** Call once when a batch of files starts loading and once when it is done (success or not). */
+export function startFileRead() {
+  state.pendingFileReads += 1;
+  updateSubmitButton();
+}
+
+export function endFileRead() {
+  state.pendingFileReads -= 1;
   updateSubmitButton();
 }

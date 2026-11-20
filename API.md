@@ -39,3 +39,4 @@ Multiple compliance files are concatenated, each prefixed with `<!-- file: name.
 ## General
 
 - All fields required; no `null`; no extra fields.
+- The web client aborts a request after 60 s (`REQUEST_TIMEOUT_MS` in `frontend/js/shared/config.js`); the backend should answer within that time.
