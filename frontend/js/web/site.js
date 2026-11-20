@@ -25,22 +25,26 @@ const submitLabel = submitButton.querySelector(".button-label");
 const result = byId("result");
 const states = result.querySelectorAll("[data-state]");
 const srStatus = byId("sr-status");
-const emptyTitle = byId("empty-title");
-const emptyText = byId("empty-text");
-const riskTitle = byId("risk-title");
-const problemSection = byId("problem-section");
-const problemList = byId("problem-list");
-const improvedBlock = byId("improved-block");
-const improvedText = byId("improved-text");
-const applyButton = byId("apply-button");
 const errorText = byId("error-text");
+
+// Div 1: Status (sichtbar)
+const statusBox = byId("result-status");
+const statusTitle = byId("status-title");
+const statusText = byId("status-text");
+const safeActions = byId("safe-actions");
+
+// Div 2: Meldungen (versteckt, für Entwickler)
+const messages = byId("result-messages");
+const messageProblems = byId("message-problems");
+const messageImproved = byId("message-improved");
+const messageRaw = byId("message-raw");
 
 const numberFormat = new Intl.NumberFormat("de-DE");
 
 let complianceText = "";
 let busy = false;
 
-// ---------- Ergebnis-Zustände ----------
+// ---------- Ergebnis ----------
 
 function setState(name) {
   states.forEach((state) => {
@@ -56,39 +60,47 @@ function announce(message) {
   });
 }
 
-function showEmpty(title, text) {
-  emptyTitle.textContent = title;
-  emptyText.textContent = text;
-  setState("empty");
-}
-
-function renderResult({ isSafe, problems, improvedVersion }) {
-  if (isSafe) {
-    setState("safe");
-    announce("Ergebnis: Keine Verstöße gefunden.");
-    return;
-  }
-
-  const items = Array.isArray(problems) ? problems.filter(Boolean) : [];
-  problemList.replaceChildren(
-    ...items.map((problem) => {
+/** Div 2: Meldungen aus der API-Antwort ablegen. Bleibt immer versteckt. */
+function fillMessages(data) {
+  const problems = Array.isArray(data?.problems) ? data.problems.filter(Boolean) : [];
+  messages.dataset.isSafe = data ? String(Boolean(data.isSafe)) : "";
+  messageProblems.replaceChildren(
+    ...problems.map((problem) => {
       const li = document.createElement("li");
       li.textContent = problem;
       return li;
     }),
   );
-  problemSection.hidden = items.length === 0;
-  riskTitle.textContent =
-    items.length === 0 ? "Risiko erkannt"
-    : items.length === 1 ? "1 Problem gefunden"
-    : `${items.length} Probleme gefunden`;
+  messageImproved.textContent = (data?.improvedVersion || "").trim();
+  messageRaw.textContent = data ? JSON.stringify(data, null, 2) : "";
+  return problems;
+}
 
-  const improved = (improvedVersion || "").trim();
-  improvedText.textContent = improved;
-  improvedBlock.hidden = !improved;
+/** Div 1: Status anzeigen. */
+function showStatus(isSafe, problemCount) {
+  statusBox.classList.toggle("is-safe", isSafe);
+  statusBox.classList.toggle("is-risk", !isSafe);
 
-  setState("risk");
-  announce(`Ergebnis: ${riskTitle.textContent}.`);
+  if (isSafe) {
+    statusTitle.textContent = "Keine Verstöße gefunden";
+    statusText.textContent = "Der Prompt kann gesendet werden.";
+  } else {
+    statusTitle.textContent =
+      problemCount === 0 ? "Risiko erkannt"
+      : problemCount === 1 ? "1 Problem gefunden"
+      : `${problemCount} Probleme gefunden`;
+    statusText.textContent = "Bitte überarbeiten Sie den Prompt vor dem Senden.";
+  }
+
+  safeActions.hidden = !isSafe;
+  setState("status");
+  announce(`Ergebnis: ${statusTitle.textContent}.`);
+}
+
+function renderResult(data) {
+  const problems = fillMessages(data);
+  showStatus(Boolean(data.isSafe), problems.length);
+  document.dispatchEvent(new CustomEvent("compliance:result", { detail: data }));
 }
 
 function renderError(error) {
@@ -161,7 +173,7 @@ async function loadFile(file) {
   fileName.textContent = file.name;
   fileMeta.textContent =
     `${formatSize(file.size)} · ` +
-    (rules > 0 ? `${numberFormat.format(rules)} ${rules === 1 ? "Regel" : "Regeln"} erkannt` : "Regelwerk geladen");
+    (rules > 0 ? `${numberFormat.format(rules)} ${rules === 1 ? "Regel" : "Regeln"}` : "Regelwerk geladen");
 
   setComplianceError("");
   dropzone.hidden = true;
@@ -222,7 +234,7 @@ promptInput.addEventListener("keydown", (event) => {
 function setBusy(value) {
   busy = value;
   submitButton.disabled = value;
-  submitLabel.textContent = value ? "Wird geprüft …" : "Prompt prüfen";
+  submitLabel.textContent = value ? "Wird geprüft …" : "Prüfen";
 }
 
 form.addEventListener("submit", async (event) => {
@@ -237,6 +249,7 @@ form.addEventListener("submit", async (event) => {
   if (!prompt) return promptInput.focus();
 
   setBusy(true);
+  fillMessages(null);
   setState("loading");
   announce("Prüfung läuft.");
 
@@ -249,7 +262,7 @@ form.addEventListener("submit", async (event) => {
   }
 });
 
-// ---------- Kopieren & Übernehmen ----------
+// ---------- Kopieren ----------
 
 async function copyText(text) {
   try {
@@ -273,11 +286,10 @@ result.addEventListener("click", async (event) => {
   const button = event.target.closest("[data-copy]");
   if (!button) return;
 
-  const text = button.dataset.copy === "improved" ? improvedText.textContent : promptInput.value;
   const label = button.querySelector(".button-label");
   label.dataset.original ??= label.textContent;
 
-  const ok = await copyText(text);
+  const ok = await copyText(promptInput.value);
   label.textContent = ok ? "Kopiert" : "Kopieren fehlgeschlagen";
   announce(label.textContent);
   setTimeout(() => {
@@ -285,29 +297,12 @@ result.addEventListener("click", async (event) => {
   }, COPY_FEEDBACK_MS);
 });
 
-applyButton.addEventListener("click", () => {
-  promptInput.value = improvedText.textContent;
-  updateCharCount();
-  setFieldError(promptInput, promptError, "");
-  showEmpty(
-    "Verbesserte Version übernommen",
-    "Prüfen Sie den angepassten Prompt erneut, bevor Sie ihn senden.",
-  );
-  announce("Verbesserte Version übernommen. Bitte erneut prüfen.");
-  promptInput.focus();
-});
-
 // ---------- Start ----------
 
 function init() {
   const isMac = /Mac|iPhone|iPad/.test(navigator.userAgent);
   byId("shortcut-key").textContent = isMac ? "⌘" : "Strg";
-
-  if (isMockMode()) {
-    byId("demo-badge").hidden = false;
-    byId("form-note").hidden = false;
-  }
-
+  byId("demo-badge").hidden = !isMockMode();
   updateCharCount();
   setState("empty");
 }
