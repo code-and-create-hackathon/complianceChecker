@@ -583,3 +583,8 @@ kbd {
   .card-result { position: static; }
 }
 
+/* Suggestion preview: unstyled for now (theming is up to design), but long prompts must wrap, not scroll sideways. */
+#result-improved-text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

@@ -129,8 +129,12 @@
           </button>
         </div>
         <!-- Unstyled for now: theming is up to the design side. -->
-        <div class="actions" id="suggestion-actions" hidden>
-          <button type="button" id="apply-suggestion">Vorschlag übernehmen</button>
+        <!-- Shown only for an unsafe result with a non-empty suggestion; hidden again on any change. -->
+        <div id="suggestion-actions" hidden>
+          <div id="result-improved"><pre id="result-improved-text"></pre></div>
+          <div class="actions">
+            <button type="button" id="apply-suggestion">Vorschlag übernehmen</button>
+          </div>
         </div>
       </div>
 
@@ -154,12 +158,12 @@
       <!--
         Div 2: messages from the API response (hidden, for developers).
         Filled on every result but never shown, not even in demo mode.
-        Access: #result-messages (data-is-safe), #result-problems, #result-improved-text,
+        Access: #result-messages (data-is-safe), #result-problems,
         #message-raw (full response as JSON) or the "compliance:result" event on document.
+        The suggestion (#result-improved-text) lives in the visible status block above.
       -->
       <div id="result-messages" data-is-safe="" hidden>
         <ul id="result-problems"></ul>
-        <div id="result-improved"><pre id="result-improved-text"></pre></div>
         <pre id="message-raw"></pre>
       </div>
 
