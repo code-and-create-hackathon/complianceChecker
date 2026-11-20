@@ -2,9 +2,5 @@
 .env
 .env.*
 
-# Echte Daten bleiben lokal (siehe data/README.md)
-data/real/*
-!data/real/README.md
-
 # System
 .DS_Store
