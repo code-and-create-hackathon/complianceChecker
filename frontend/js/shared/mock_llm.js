@@ -26,7 +26,8 @@ const CHECKS = [
     replacement: "$1[ENTFERNT]",
   },
   {
-    pattern: /\b(?:streng vertraulich|vertraulich|confidential|insiderinformationen|insiderinformation|insider)\b/gi,
+    // inkl. Beugungen: vertrauliche, vertraulichen, Insiderinformationen …
+    pattern: /\b(?:streng vertraulich\w*|vertraulich\w*|confidential|insider\w*)\b/gi,
     problem: "Enthält als vertraulich gekennzeichnete Informationen.",
     replacement: "[ENTFERNT]",
   },
