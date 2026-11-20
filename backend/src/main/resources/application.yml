@@ -4,6 +4,13 @@ spring:
   jpa:
     open-in-view: false
 
+llm:
+  # "mock" (default): rule-based simulation, no AWS calls. "bedrock": real check with Amazon Bedrock.
+  provider: "${LLM_PROVIDER:mock}"
+  # Bedrock only. Amazon Nova 2 Lite via the EU geo inference profile (no in-region access in eu-north-1).
+  model-id: "${LLM_MODEL_ID:eu.amazon.nova-2-lite-v1:0}"
+  aws-region: "${AWS_REGION:eu-north-1}"
+
 server:
   port: ${PORT:8080}
   error:

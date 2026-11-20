@@ -46,14 +46,15 @@ class CheckControllerTest {
 	@Test
 	void returnsResultInApiShape() throws Exception {
 		given(llmClient.check(anyString(), anyString())).willReturn(new CheckResponse(false,
-				List.of("Contains an IBAN"), List.of(ProblemCategory.ACCOUNT_DATA), "Transfer from [IBAN]"));
+				List.of("Contains an IBAN"), List.of(ProblemCategory.ACCOUNT_DATA), "Transfer from [IBAN]", true));
 
 		postCheck(json("Transfer from " + SECRET, "# Rules\nNo IBANs."))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.isSafe").value(false))
 				.andExpect(jsonPath("$.problems[0]").value("Contains an IBAN"))
 				.andExpect(jsonPath("$.categories[0]").value("ACCOUNT_DATA"))
-				.andExpect(jsonPath("$.improvedVersion").value("Transfer from [IBAN]"));
+				.andExpect(jsonPath("$.improvedVersion").value("Transfer from [IBAN]"))
+				.andExpect(jsonPath("$.simulated").value(true));
 	}
 
 	@Test
@@ -131,7 +132,7 @@ class CheckControllerTest {
 	@Test
 	void logsOnlyMetadata(CapturedOutput output) throws Exception {
 		given(llmClient.check(anyString(), anyString()))
-				.willReturn(new CheckResponse(true, List.of(), List.of(), "harmless"));
+				.willReturn(new CheckResponse(true, List.of(), List.of(), "harmless", true));
 
 		postCheck(json("Note " + SECRET, "rules")).andExpect(status().isOk());
 

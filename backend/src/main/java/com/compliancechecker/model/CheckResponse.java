@@ -11,10 +11,12 @@ import java.util.List;
  * @param problems        human-readable findings
  * @param categories      coarse categories of the findings
  * @param improvedVersion sanitized prompt with sensitive values replaced by placeholders
+ * @param simulated       true if the result comes from the rule-based mock, not from a real compliance check
  */
 public record CheckResponse(
 		@JsonProperty("isSafe") boolean isSafe,
 		List<String> problems,
 		List<ProblemCategory> categories,
-		String improvedVersion) {
+		String improvedVersion,
+		boolean simulated) {
 }

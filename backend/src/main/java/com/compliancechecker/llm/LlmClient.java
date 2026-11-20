@@ -1,24 +1,18 @@
 package com.compliancechecker.llm;
 
 import com.compliancechecker.model.CheckResponse;
-import org.springframework.stereotype.Component;
 
 /**
- * Asks the LLM whether a prompt complies with the given rules. The only class that knows which LLM is used.
+ * Checks a prompt against compliance rules. Selected with {@code llm.provider}: {@code mock} (default, no AWS) or
+ * {@code bedrock}.
  */
-@Component
-public class LlmClient {
+public interface LlmClient {
 
 	/**
-	 * @throws LlmException if the model cannot be reached or returns an unusable answer
+	 * @throws LlmException if the check cannot be completed; the prompt must then not be approved
 	 */
-	public CheckResponse check(String prompt, String complianceRules) {
-		// Amazon Bedrock is connected in step 3.
-		throw new LlmException("No LLM configured yet");
-	}
+	CheckResponse check(String prompt, String complianceRules);
 
-	/** Identifier of the model in use, e.g. the Bedrock model id. */
-	public String modelId() {
-		return "none";
-	}
+	/** Identifier of the model in use, for logs and history. */
+	String modelId();
 }

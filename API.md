@@ -25,11 +25,15 @@ Server to client payload (`200 OK`):
     ""
   ],
   "categories": ["CUSTOMER_DATA"],
-  "improvedVersion": ""
+  "improvedVersion": "",
+  "simulated": true
 }
 ```
 
 - `categories` (addition): coarse problem categories, one of `CUSTOMER_DATA`, `ACCOUNT_DATA`, `INSIDER_INFO`, `CREDENTIALS`, `OTHER`
+- `simulated` (addition): `true` if the result comes from the mock mode (`LLM_PROVIDER=mock`, the default). The mock only
+  detects a few patterns (email, phone, credit card, IBAN, confidentiality keywords) and ignores the uploaded
+  compliance rules. It is **not** a real compliance check.
 
 
 ## Errors
