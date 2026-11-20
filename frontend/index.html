@@ -39,29 +39,37 @@
 
           <div class="dropzone" id="dropzone">
             <input type="file" id="compliance" name="compliance" class="visually-hidden"
-                   accept=".md,.markdown,.txt,text/markdown,text/plain"
+                   accept=".md,.markdown,.txt,text/markdown,text/plain" multiple
                    aria-describedby="compliance-hint compliance-error">
             <span class="tile-icon" aria-hidden="true">
               <svg viewBox="0 0 24 24"><path d="M12 15V4" /><path d="m7 9 5-5 5 5" /><path d="M4 15v4a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-4" /></svg>
             </span>
             <span class="dropzone-text">
-              <strong>Datei auswählen oder hierher ziehen</strong>
-              <span id="compliance-hint">.md oder .txt, max. 1 MB</span>
+              <strong>Dateien auswählen oder hierher ziehen</strong>
+              <span id="compliance-hint">Eine oder mehrere .md- oder .txt-Dateien, insgesamt max. 500.000 Zeichen</span>
             </span>
           </div>
 
-          <div class="file-chip" id="file-chip" hidden>
-            <span class="tile-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" /><path d="M14 3v5h5" /><path d="M9 13h6M9 17h4" /></svg>
-            </span>
-            <span class="file-info">
-              <span class="file-name" id="file-name"></span>
-              <span class="file-meta" id="file-meta"></span>
-            </span>
-            <button type="button" class="icon-button" id="file-remove" aria-label="Datei entfernen">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12" /></svg>
-            </button>
+          <div class="file-summary" id="compliance-summary" hidden>
+            <span id="compliance-status"></span>
+            <button type="button" class="link-button" id="compliance-clear">Alle entfernen</button>
           </div>
+          <ul class="file-list" id="compliance-files"></ul>
+
+          <template id="file-chip-template">
+            <li class="file-chip">
+              <span class="tile-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" /><path d="M14 3v5h5" /><path d="M9 13h6M9 17h4" /></svg>
+              </span>
+              <span class="file-info">
+                <span class="file-name"></span>
+                <span class="file-meta"></span>
+              </span>
+              <button type="button" class="icon-button file-remove" aria-label="Datei entfernen">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12" /></svg>
+              </button>
+            </li>
+          </template>
 
           <p class="field-error" id="compliance-error" hidden></p>
         </div>
@@ -79,7 +87,7 @@
           <p class="field-error" id="prompt-error" hidden></p>
         </div>
 
-        <button type="submit" class="button button-primary button-block" id="submit-button">
+        <button type="submit" class="button button-primary button-block" id="check-submit">
           <span class="button-label">Prüfen</span>
         </button>
       </form>
@@ -102,7 +110,7 @@
         </div>
       </div>
 
-      <!-- Div 1: Status (sichtbar) -->
+      <!-- Div 1: status (visible) -->
       <div class="state" data-state="status" hidden>
         <div class="status" id="result-status">
           <span class="status-icon" aria-hidden="true">
@@ -120,6 +128,14 @@
             <span class="button-label">Prompt kopieren</span>
           </button>
         </div>
+        <!-- Unstyled for now: theming is up to the design side. -->
+        <!-- Shown only for an unsafe result with a non-empty suggestion; hidden again on any change. -->
+        <div id="suggestion-actions" hidden>
+          <div id="result-improved"><pre id="result-improved-text"></pre></div>
+          <div class="actions">
+            <button type="button" id="apply-suggestion">Vorschlag übernehmen</button>
+          </div>
+        </div>
       </div>
 
       <div class="state" data-state="error" hidden>
@@ -129,7 +145,7 @@
           </span>
           <div>
             <p class="status-title">Prüfung fehlgeschlagen</p>
-            <p class="status-text" id="error-text"></p>
+            <p class="status-text" id="error"></p>
           </div>
         </div>
         <div class="actions">
@@ -140,14 +156,14 @@
       </div>
 
       <!--
-        Div 2: Meldungen aus der API-Antwort (versteckt, für Entwickler).
-        Wird bei jedem Ergebnis gefüllt, aber nie angezeigt – auch nicht im Demo-Modus.
-        Zugriff: #result-messages (data-is-safe), #message-problems, #message-improved,
-        #message-raw (komplette Antwort als JSON) oder Event "compliance:result" auf document.
+        Div 2: messages from the API response (hidden, for developers).
+        Filled on every result but never shown, not even in demo mode.
+        Access: #result-messages (data-is-safe), #result-problems,
+        #message-raw (full response as JSON) or the "compliance:result" event on document.
+        The suggestion (#result-improved-text) lives in the visible status block above.
       -->
       <div id="result-messages" data-is-safe="" hidden>
-        <ul id="message-problems"></ul>
-        <div id="message-improved"></div>
+        <ul id="result-problems"></ul>
         <pre id="message-raw"></pre>
       </div>
 

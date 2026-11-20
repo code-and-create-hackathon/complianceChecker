@@ -1,6 +1,10 @@
 # Secrets
 .env
 .env.*
+!.env.example
 
-# System
+# System / Editor / Dependencies
 .DS_Store
+.idea/
+.vscode/
+node_modules/
