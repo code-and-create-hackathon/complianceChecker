@@ -1,9 +1,9 @@
-// Demo-Modus: simuliert den Prüfdienst lokal im Browser, solange es kein Backend gibt.
-// Antwortformat wie in API.md. Es werden keine Daten übertragen.
+// Demo mode: simulates the check service locally in the browser until a backend exists.
+// Response format as in API.md. No data is sent anywhere.
 
 const DELAY_MS = 900;
 
-// Reihenfolge ist wichtig: spezifische Muster (IBAN) vor allgemeinen (lange Ziffernfolgen).
+// Order matters: specific patterns (IBAN) before general ones (long digit sequences).
 const CHECKS = [
   {
     pattern: /\b[A-Z]{2}\d{2}(?: ?[A-Z0-9]{4}){2,7}(?: ?[A-Z0-9]{1,3})?\b/g,
@@ -26,7 +26,7 @@ const CHECKS = [
     replacement: "$1[ENTFERNT]",
   },
   {
-    // inkl. Beugungen: vertrauliche, vertraulichen, Insiderinformationen …
+    // incl. inflections: vertrauliche, vertraulichen, Insiderinformationen …
     pattern: /\b(?:streng vertraulich\w*|vertraulich\w*|confidential|insider\w*)\b/gi,
     problem: "Enthält als vertraulich gekennzeichnete Informationen.",
     replacement: "[ENTFERNT]",
@@ -35,7 +35,7 @@ const CHECKS = [
 
 /**
  * @param {string} prompt
- * @param {string} _compliance  Wird im Demo-Modus nicht ausgewertet.
+ * @param {string} _compliance  Ignored in demo mode.
  * @returns {Promise<{isSafe: boolean, problems: string[], improvedVersion: string}>}
  */
 export async function mockLlm(prompt, _compliance) {

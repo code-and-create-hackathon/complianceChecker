@@ -4,8 +4,8 @@ import { mockLlm } from "./mock_llm.js";
 import { validateRequest, validateResponse } from "./validate.js";
 
 /**
- * Demo-Modus ohne Backend: an mit ?mock=1, aus mit ?mock=0.
- * Ohne Parameter automatisch an auf localhost / 127.0.0.1 (z. B. Live Server).
+ * Demo mode without backend: on with ?mock=1, off with ?mock=0.
+ * Without the parameter it is on automatically on localhost / 127.0.0.1 (e.g. Live Server).
  */
 export function isMockMode() {
   const param = new URLSearchParams(window.location.search).get("mock");

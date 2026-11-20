@@ -1,14 +1,14 @@
 /* complianceChecker styles */
 
-/* ---------- Design-Tokens ---------- */
+/* ---------- Design tokens ---------- */
 
 :root {
-  /* Hauptfarbe Petrol: ruhig, kontrolliert, vertrauenswürdig */
+  /* Primary colour petrol: calm, controlled, trustworthy */
   --primary: #155E63;
   --primary-hover: #0F4A4E;
   --primary-soft: #E8F1F1;
 
-  /* Neutrale Töne */
+  /* Neutral tones */
   --text: #1D2528;
   --text-muted: #4C575B;
   --text-subtle: #6A7579;
@@ -17,7 +17,7 @@
   --border: #DCE1E2;
   --border-strong: #C3CACC;
 
-  /* Signalfarben, gedeckt */
+  /* Signal colours, muted */
   --safe: #2E7D50;
   --safe-bg: #EAF4EE;
   --safe-border: #BFDCCB;
@@ -25,7 +25,7 @@
   --risk-bg: #FBEEEB;
   --risk-border: #EFC7BF;
 
-  /* Typografie, Formen */
+  /* Typography, shapes */
   --font: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --radius-sm: 6px;
   --radius: 8px;
@@ -33,7 +33,7 @@
   --ring: 0 0 0 3px rgba(21, 94, 99, 0.25);
 }
 
-/* ---------- Basis ---------- */
+/* ---------- Base ---------- */
 
 *, *::before, *::after { box-sizing: border-box; }
 
@@ -84,7 +84,7 @@ svg {
   padding-inline: 16px;
 }
 
-/* ---------- Kopfzeile ---------- */
+/* ---------- Header ---------- */
 
 .topbar {
   border-bottom: 1px solid var(--border);
@@ -122,7 +122,7 @@ svg {
   color: var(--text-muted);
 }
 
-/* ---------- Arbeitsbereich ---------- */
+/* ---------- Workspace ---------- */
 
 .workspace {
   display: grid;
@@ -151,7 +151,7 @@ svg {
   top: 20px;
 }
 
-/* ---------- Formularfelder ---------- */
+/* ---------- Form fields ---------- */
 
 .field { margin-bottom: 20px; }
 
@@ -402,7 +402,7 @@ kbd {
   min-height: 46px;
 }
 
-/* ---------- Ergebnis ---------- */
+/* ---------- Result ---------- */
 
 .state-empty {
   display: grid;
@@ -492,7 +492,7 @@ kbd {
   margin-top: 12px;
 }
 
-/* ---------- So funktioniert's ---------- */
+/* ---------- How it works ---------- */
 
 .how {
   display: flex;
@@ -554,7 +554,7 @@ kbd {
   padding-block: 16px;
 }
 
-/* ---------- Animationen ---------- */
+/* ---------- Animations ---------- */
 
 @keyframes spin { to { transform: rotate(360deg); } }
 
@@ -568,7 +568,7 @@ kbd {
 
 /* ---------- Responsive ---------- */
 
-/* Tastenkürzel-Hinweis nur mit Tastatur/Maus sinnvoll */
+/* Shortcut hint only makes sense with keyboard/mouse */
 @media (hover: none) {
   #prompt-hint { visibility: hidden; }
 }

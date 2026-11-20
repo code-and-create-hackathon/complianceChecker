@@ -1,0 +1,168 @@
+// Compliance rules upload: dropzone, file chips, file checks.
+import { readComplianceFiles } from "../shared/compliance_files.js";
+import { $, numberFormat, setFieldError } from "./dom.js";
+import { state, setReadingFiles } from "./state.js";
+import { resetResult } from "./result_view.js";
+
+const MAX_FILE_BYTES = 1024 * 1024;
+const ACCEPTED_FILE = /\.(md|markdown|txt)$/i;
+
+const fileInput = $("compliance");
+const dropzone = $("dropzone");
+const fileSummary = $("compliance-summary");
+const fileStatus = $("compliance-status");
+const fileList = $("compliance-files");
+const fileClear = $("compliance-clear");
+const chipTemplate = $("file-chip-template");
+const complianceError = $("compliance-error");
+
+// ---------- Messages ----------
+
+export function setComplianceError(message) {
+  setFieldError(fileInput, complianceError, message);
+  dropzone.classList.toggle("is-invalid", Boolean(message));
+}
+
+/** Notice below the upload without marking the field invalid (files are still loaded). */
+function setComplianceNotice(message) {
+  setComplianceError("");
+  complianceError.textContent = message;
+  complianceError.hidden = !message;
+}
+
+export function focusUpload() {
+  fileInput.focus();
+}
+
+// ---------- Rendering ----------
+
+function formatSize(bytes) {
+  if (bytes < 1024) return `${bytes} B`;
+  return `${(bytes / 1024).toLocaleString("de-DE", { maximumFractionDigits: 1 })} KB`;
+}
+
+function countRules(markdown) {
+  return markdown
+    .split(/\r?\n/)
+    .filter((line) => /^\s*(?:[-*+]|\d+[.)])\s+\S/.test(line)).length;
+}
+
+function ruleSummary(text) {
+  const rules = countRules(text);
+  return rules > 0 ? `${numberFormat.format(rules)} ${rules === 1 ? "Regel" : "Regeln"}` : "Regelwerk geladen";
+}
+
+function renderFiles() {
+  const files = state.complianceFiles;
+  fileList.replaceChildren(
+    ...files.map((file, index) => {
+      const chip = chipTemplate.content.firstElementChild.cloneNode(true);
+      chip.querySelector(".file-name").textContent = file.name;
+      chip.querySelector(".file-meta").textContent = `${formatSize(file.size)} · ${ruleSummary(file.text)}`;
+      const remove = chip.querySelector(".file-remove");
+      remove.dataset.index = String(index);
+      remove.setAttribute("aria-label", `${file.name} entfernen`);
+      return chip;
+    }),
+  );
+  fileStatus.textContent =
+    files.length === 1 ? "1 Datei geladen" : `${numberFormat.format(files.length)} Dateien geladen`;
+  fileSummary.hidden = files.length === 0;
+}
+
+/** After every change to the rules: re-render and discard the old result. */
+function setFiles(files) {
+  state.complianceFiles = files;
+  renderFiles();
+  resetResult();
+}
+
+// ---------- Loading ----------
+
+/**
+ * Adds the files to the loaded ones (same name replaces the old file).
+ * Wrong types, too large and empty files are discarded and reported.
+ */
+async function loadFiles(fileListLike) {
+  const picked = [...(fileListLike || [])];
+  fileInput.value = "";
+  if (!picked.length) return;
+
+  const skipped = [];
+  const candidates = picked.filter((file) => {
+    if (!ACCEPTED_FILE.test(file.name)) skipped.push(`${file.name} (kein .md/.txt)`);
+    else if (file.size > MAX_FILE_BYTES) skipped.push(`${file.name} (größer als 1 MB)`);
+    else return true;
+    return false;
+  });
+
+  setReadingFiles(true);
+  resetResult();
+  try {
+    const { files, emptyNames } = await readComplianceFiles(candidates);
+    emptyNames.forEach((name) => skipped.push(`${name} (leer)`));
+    const sizes = new Map(candidates.map((file) => [file.name, file.size]));
+    const loaded = files.map((file) => ({ ...file, size: sizes.get(file.name) ?? 0 }));
+    const newNames = new Set(loaded.map((file) => file.name));
+    setFiles([...state.complianceFiles.filter((file) => !newNames.has(file.name)), ...loaded]);
+
+    const message = skipped.length ? `Nicht übernommen: ${skipped.join(", ")}.` : "";
+    if (state.complianceFiles.length) setComplianceNotice(message);
+    else setComplianceError(message || "Keine gültige Datei geladen.");
+  } catch (error) {
+    // Fail loudly: never keep using half-loaded or outdated rules.
+    setFiles([]);
+    setComplianceError(
+      `Datei konnte nicht gelesen werden (${error.message || error}). Bitte alle Regeln erneut hochladen.`,
+    );
+  } finally {
+    setReadingFiles(false);
+  }
+}
+
+// ---------- Events ----------
+
+export function initUpload() {
+  fileInput.addEventListener("change", () => loadFiles(fileInput.files));
+
+  dropzone.addEventListener("click", (event) => {
+    if (event.target !== fileInput) fileInput.click();
+  });
+
+  dropzone.addEventListener("dragover", (event) => {
+    event.preventDefault();
+    dropzone.classList.add("is-dragover");
+  });
+
+  dropzone.addEventListener("dragleave", (event) => {
+    if (!dropzone.contains(event.relatedTarget)) dropzone.classList.remove("is-dragover");
+  });
+
+  dropzone.addEventListener("drop", (event) => {
+    event.preventDefault();
+    dropzone.classList.remove("is-dragover");
+    loadFiles(event.dataTransfer.files);
+  });
+
+  // Stops the browser from opening a file dropped outside the dropzone.
+  ["dragover", "drop"].forEach((type) => {
+    window.addEventListener(type, (event) => event.preventDefault());
+  });
+
+  fileList.addEventListener("click", (event) => {
+    const button = event.target.closest(".file-remove");
+    if (!button) return;
+    const index = Number(button.dataset.index);
+    setComplianceError("");
+    setFiles(state.complianceFiles.filter((_, i) => i !== index));
+    fileInput.focus();
+  });
+
+  fileClear.addEventListener("click", () => {
+    setComplianceError("");
+    setFiles([]);
+    fileInput.focus();
+  });
+
+  renderFiles();
+}

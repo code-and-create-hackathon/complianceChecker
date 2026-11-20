@@ -110,7 +110,7 @@
         </div>
       </div>
 
-      <!-- Div 1: Status (sichtbar) -->
+      <!-- Div 1: status (visible) -->
       <div class="state" data-state="status" hidden>
         <div class="status" id="result-status">
           <span class="status-icon" aria-hidden="true">
@@ -148,10 +148,10 @@
       </div>
 
       <!--
-        Div 2: Meldungen aus der API-Antwort (versteckt, für Entwickler).
-        Wird bei jedem Ergebnis gefüllt, aber nie angezeigt – auch nicht im Demo-Modus.
-        Zugriff: #result-messages (data-is-safe), #result-problems, #result-improved-text,
-        #message-raw (komplette Antwort als JSON) oder Event "compliance:result" auf document.
+        Div 2: messages from the API response (hidden, for developers).
+        Filled on every result but never shown, not even in demo mode.
+        Access: #result-messages (data-is-safe), #result-problems, #result-improved-text,
+        #message-raw (full response as JSON) or the "compliance:result" event on document.
       -->
       <div id="result-messages" data-is-safe="" hidden>
         <ul id="result-problems"></ul>
