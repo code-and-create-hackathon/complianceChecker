@@ -7,6 +7,7 @@ import { setState, showLoading, renderResult, renderError } from "./result_view.
 import { initUpload, setComplianceError, focusUpload } from "./upload.js";
 import { initPromptField, getPrompt, validatePrompt, focusPrompt } from "./prompt_field.js";
 import { initCopy } from "./copy.js";
+import { initSuggestion } from "./suggestion.js";
 
 const form = $("check-form");
 
@@ -37,6 +38,7 @@ function init() {
   initUpload();
   initPromptField(form);
   initCopy();
+  initSuggestion();
   form.addEventListener("submit", check);
   setState("empty");
 }

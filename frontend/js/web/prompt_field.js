@@ -17,6 +17,13 @@ export function validatePrompt() {
   return ok;
 }
 
+/** Replaces the prompt like a user edit would (char count, error, stale result). */
+export function setPrompt(text) {
+  promptInput.value = text;
+  promptInput.dispatchEvent(new Event("input"));
+  promptInput.focus();
+}
+
 export function focusPrompt() {
   promptInput.focus();
 }

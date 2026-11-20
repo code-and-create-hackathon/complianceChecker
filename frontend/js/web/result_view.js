@@ -12,6 +12,7 @@ const statusBox = $("result-status");
 const statusTitle = $("status-title");
 const statusText = $("status-text");
 const safeActions = $("safe-actions");
+const suggestionActions = $("suggestion-actions");
 
 // Div 2: messages (hidden, for developers)
 const messages = $("result-messages");
@@ -44,7 +45,7 @@ function fillMessages(data) {
 }
 
 /** Div 1: show the status. */
-function showStatus(isSafe, problemCount) {
+function showStatus(isSafe, problemCount, hasSuggestion) {
   statusBox.classList.toggle("is-safe", isSafe);
   statusBox.classList.toggle("is-risk", !isSafe);
 
@@ -60,6 +61,7 @@ function showStatus(isSafe, problemCount) {
   }
 
   safeActions.hidden = !isSafe;
+  suggestionActions.hidden = isSafe || !hasSuggestion;
   setState("status");
   announce(`Ergebnis: ${statusTitle.textContent}.`);
 }
@@ -68,6 +70,11 @@ export function showLoading() {
   fillMessages(null);
   setState("loading");
   announce("Prüfung läuft.");
+}
+
+/** The improved prompt from the last result ("" if none). */
+export function getSuggestion() {
+  return messageImproved.textContent;
 }
 
 /** Discards the last result as soon as the rules or the prompt change. */
@@ -80,7 +87,7 @@ export function resetResult() {
 /** @param {import("../shared/validate.js").CheckResponse} data */
 export function renderResult(data) {
   const problems = fillMessages(data);
-  showStatus(Boolean(data.isSafe), problems.length);
+  showStatus(Boolean(data.isSafe), problems.length, Boolean(getSuggestion()));
   document.dispatchEvent(new CustomEvent("compliance:result", { detail: data }));
 }
 
