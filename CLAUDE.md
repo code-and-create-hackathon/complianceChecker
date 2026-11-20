@@ -12,7 +12,6 @@ Compliance-Gate für Finanzdienstleister: Prompts laufen zuerst durch unser Syst
 - [Frontend] · [Backend] · [Datenbank]
 
 ## Regeln
-- **Jeder Prompt wird sofort und wörtlich in `PROMPTS.md` angehängt, bevor die Arbeit beginnt.** Format: `## [Datum Uhrzeit] – [Name]`, dann der Prompt als Zitat, dann `Ergebnis:` in 1–2 Sätzen.
 - Schrittweise arbeiten: erst den aktuellen Stand prüfen, dann ändern.
 - MVP für die Demo vor Perfektion.
 - Keine Secrets committen (`.env` + `.gitignore`).
