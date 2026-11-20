@@ -457,6 +457,7 @@ kbd {
 }
 
 .form-note svg {
+  flex: none;
   width: 14px;
   height: 14px;
   color: var(--link);
@@ -728,6 +729,11 @@ kbd {
 }
 
 /* ---------- Responsive ---------- */
+
+/* Tastenkürzel-Hinweis nur mit Tastatur/Maus sinnvoll */
+@media (hover: none) {
+  #prompt-hint { visibility: hidden; }
+}
 
 @media (min-width: 640px) {
   .container { padding-inline: 24px; }
