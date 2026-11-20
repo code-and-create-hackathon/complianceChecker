@@ -1,6 +1,8 @@
 # API definition - first draft
 
-Client to server payload:
+## `POST /api/check`
+
+Client to server payload (`Content-Type: application/json`):
 
 ```json
 {
@@ -9,8 +11,11 @@ Client to server payload:
 }
 ```
 
+- `prompt`: required, not blank, max. 20,000 characters
+- `compliance`: compliance rules (Markdown), required, not blank, max. 100,000 characters
 
-Server to client payload:
+
+Server to client payload (`200 OK`):
 
 ```json
 {
@@ -19,6 +24,33 @@ Server to client payload:
     "",
     ""
   ],
+  "categories": ["CUSTOMER_DATA"],
   "improvedVersion": ""
 }
 ```
+
+- `categories` (addition): coarse problem categories, one of `CUSTOMER_DATA`, `ACCOUNT_DATA`, `INSIDER_INFO`, `CREDENTIALS`, `OTHER`
+
+
+## Errors
+
+All errors share one shape. Messages are fixed server-side texts and never contain any part of the submitted content.
+
+```json
+{
+  "error": "INVALID_REQUEST",
+  "message": "The request is invalid. See fieldErrors.",
+  "fieldErrors": {
+    "prompt": "must not be empty"
+  },
+  "requestId": "6f1c..."
+}
+```
+
+| Status | `error`                  | When                                       |
+|--------|--------------------------|--------------------------------------------|
+| 400    | `INVALID_REQUEST`        | empty/missing/too long field, invalid JSON |
+| 405    | `METHOD_NOT_ALLOWED`     | wrong HTTP method                          |
+| 415    | `UNSUPPORTED_MEDIA_TYPE` | `Content-Type` is not `application/json`   |
+| 502    | `LLM_UNAVAILABLE`        | the LLM could not be reached or failed     |
+| 500    | `INTERNAL_ERROR`         | anything else                              |
