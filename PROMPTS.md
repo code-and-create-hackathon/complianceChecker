@@ -35,3 +35,21 @@ Protokoll aller Prompts (wörtlich, chronologisch). Format pro Eintrag: `## [Dat
 > Committe beide Dateien mit der Message "Add CLAUDE.md and PROMPTS.md" und pushe auf den aktuellen Branch. Zeige mir danach den Commit-Hash und den Status.
 
 Ergebnis: CLAUDE.md (Projektregeln) und PROMPTS.md angelegt und lokal mit der Message "Add CLAUDE.md and PROMPTS.md" committet; der Push auf `origin/main` scheiterte mit 403 (Berechtigung fehlt für den Git-Benutzer `Luca0715`).
+
+## 2026-11-20 18:20 – Luca
+
+> erstelle ein dev branch und commite es darauf. Wir pushen auf main nur, wenn wir uns alle abgestimmt haben
+
+Ergebnis: Branch `dev` mit Commit `13295b4` angelegt; `main` lokal auf `origin/main` (`22c5696`) zurückgesetzt, nichts gepusht.
+
+## 2026-11-20 18:25 – Luca
+
+> ja pushe auf dev, die schreibrechte sollten da sein
+
+Ergebnis: `dev` nach `origin/dev` gepusht (`13295b4`, Tracking eingerichtet), `main` unverändert.
+
+## 2026-11-20 18:27 – Luca
+
+> wenn ich hier nun prompte und auf dev pushe, hast du dann immer die Claude.MD jetzt oder nicht? Du hast nämlich nicht die anderen änderungen in die Prompt.MD genommen
+
+Ergebnis: Die Prompts 2 bis 4 waren nicht protokolliert, das wird hiermit nachgeholt; `CLAUDE.md` liegt auf `dev`, aber nicht auf `main`.
