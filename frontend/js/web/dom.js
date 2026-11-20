@@ -2,7 +2,14 @@
 
 export const $ = (id) => document.getElementById(id);
 
-export const numberFormat = new Intl.NumberFormat("de-DE");
+export const LOCALE = "en-GB";
+
+export const numberFormat = new Intl.NumberFormat(LOCALE);
+
+/** "1 rule" / "3 rules" */
+export function plural(count, one, many) {
+  return `${numberFormat.format(count)} ${count === 1 ? one : many}`;
+}
 
 const srStatus = $("sr-status");
 

@@ -1,9 +1,12 @@
-// "Prompt kopieren" buttons (data-copy) in the result card.
+// "Copy" buttons (data-copy="prompt" | "suggestion") in the result panel.
 import { $, announce } from "./dom.js";
+import { getSuggestion } from "./result_view.js";
+import { getPrompt } from "./prompt_field.js";
 
 const COPY_FEEDBACK_MS = 1600;
 
-async function copyText(text) {
+/** Copies text to the clipboard; falls back to execCommand where the Clipboard API is unavailable. */
+export async function copyText(text) {
   try {
     await navigator.clipboard.writeText(text);
     return true;
@@ -21,6 +24,11 @@ async function copyText(text) {
   }
 }
 
+/** Text for a data-copy / data-send button. */
+export function textFor(button, attribute) {
+  return button.dataset[attribute] === "suggestion" ? getSuggestion() : getPrompt();
+}
+
 export function initCopy() {
   $("result").addEventListener("click", async (event) => {
     const button = event.target.closest("[data-copy]");
@@ -29,8 +37,8 @@ export function initCopy() {
     const label = button.querySelector(".button-label");
     label.dataset.original ??= label.textContent;
 
-    const ok = await copyText($("prompt").value);
-    label.textContent = ok ? "Kopiert" : "Kopieren fehlgeschlagen";
+    const ok = await copyText(textFor(button, "copy"));
+    label.textContent = ok ? "Copied" : "Copy failed";
     announce(label.textContent);
     setTimeout(() => {
       label.textContent = label.dataset.original;

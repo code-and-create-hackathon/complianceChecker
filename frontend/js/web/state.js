@@ -6,6 +6,8 @@ import { $ } from "./dom.js";
 export const state = {
   /** @type {LoadedFile[]} */
   complianceFiles: [],
+  /** When the rules were last changed (null = none loaded). @type {Date | null} */
+  rulesLoadedAt: null,
   /** A check is running. */
   busy: false,
   /** Number of file batches still being read. */
@@ -22,7 +24,7 @@ export function canSubmit() {
 
 function updateSubmitButton() {
   submitButton.disabled = !canSubmit();
-  submitLabel.textContent = state.busy ? "Wird geprüft …" : "Prüfen";
+  submitLabel.textContent = state.busy ? "Checking …" : "Check";
 }
 
 export function setBusy(value) {

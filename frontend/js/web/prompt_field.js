@@ -1,4 +1,4 @@
-// Prompt field: character count, Ctrl/⌘ + Enter, error message.
+// Prompt field: character count, Ctrl/⌘ + Enter, "Clear", error message.
 import { $, numberFormat, setFieldError } from "./dom.js";
 import { resetResult } from "./result_view.js";
 
@@ -13,7 +13,7 @@ export function getPrompt() {
 /** Checks that a prompt was entered; shows the error otherwise. */
 export function validatePrompt() {
   const ok = Boolean(getPrompt());
-  setFieldError(promptInput, promptError, ok ? "" : "Bitte geben Sie einen Prompt ein.");
+  setFieldError(promptInput, promptError, ok ? "" : "Please enter a prompt.");
   return ok;
 }
 
@@ -30,13 +30,14 @@ export function focusPrompt() {
 
 function updateCharCount() {
   // Characters = Unicode code points as in API.md (an emoji counts as 1).
-  charCount.textContent = `${numberFormat.format([...promptInput.value].length)} Zeichen`;
+  const count = [...promptInput.value].length;
+  charCount.textContent = `${numberFormat.format(count)} ${count === 1 ? "character" : "characters"}`;
 }
 
 /** @param {HTMLFormElement} form */
 export function initPromptField(form) {
   const isMac = /Mac|iPhone|iPad/.test(navigator.userAgent);
-  $("shortcut-key").textContent = isMac ? "⌘" : "Strg";
+  $("shortcut-key").textContent = isMac ? "⌘" : "Ctrl";
 
   promptInput.addEventListener("input", () => {
     updateCharCount();
@@ -50,6 +51,8 @@ export function initPromptField(form) {
       form.requestSubmit();
     }
   });
+
+  $("clear-button").addEventListener("click", () => setPrompt(""));
 
   updateCharCount();
 }
