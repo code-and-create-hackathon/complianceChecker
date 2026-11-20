@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>complianceChecker</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main>
+    <form id="check-form">
+      <label for="prompt">Prompt</label>
+      <textarea id="prompt" name="prompt" rows="8" required></textarea>
+
+      <label for="compliance">Compliance rules (Markdown)</label>
+      <input type="file" id="compliance" name="compliance" accept=".md,.markdown,.txt,text/markdown,text/plain" required>
+
+      <button type="submit">Check</button>
+    </form>
+    <!-- TODO: result -->
+  </main>
+  <script type="module" src="js/web/site.js"></script>
+</body>
+</html>
