@@ -1,5 +1,6 @@
 package com.compliancechecker.controller;
 
+import com.compliancechecker.history.HistoryService;
 import com.compliancechecker.llm.LlmClient;
 import com.compliancechecker.llm.LlmException;
 import com.compliancechecker.model.CheckResponse;
@@ -42,6 +43,9 @@ class CheckControllerTest {
 
 	@MockitoBean
 	private LlmClient llmClient;
+
+	@MockitoBean
+	private HistoryService historyService;
 
 	@Test
 	void returnsResultInApiShape() throws Exception {

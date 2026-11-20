@@ -1,6 +1,7 @@
 package com.compliancechecker.llm;
 
 import com.compliancechecker.config.BedrockConfig;
+import com.compliancechecker.service.SensitiveDataScanner;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import software.amazon.awssdk.services.bedrockruntime.BedrockRuntimeClient;
@@ -11,7 +12,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class LlmProviderSelectionTest {
 
 	private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
-			.withUserConfiguration(MockLlmClient.class, BedrockLlmClient.class, BedrockConfig.class)
+			.withUserConfiguration(SensitiveDataScanner.class, MockLlmClient.class, BedrockLlmClient.class, BedrockConfig.class)
 			.withPropertyValues("llm.model-id=test-model", "llm.aws-region=eu-north-1");
 
 	@Test

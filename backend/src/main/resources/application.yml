@@ -1,8 +1,17 @@
 spring:
   application:
     name: compliance-checker
+  datasource:
+    # File-based H2, survives restarts. Switch to PostgreSQL by setting HISTORY_DB_URL (+ user/password).
+    url: "${HISTORY_DB_URL:jdbc:h2:file:./data/history}"
+    username: "${HISTORY_DB_USER:sa}"
+    password: "${HISTORY_DB_PASSWORD:}"
   jpa:
     open-in-view: false
+    hibernate:
+      ddl-auto: update
+    # SQL logging stays off so no stored values ever appear in logs.
+    show-sql: false
 
 llm:
   # "mock" (default): rule-based simulation, no AWS calls. "bedrock": real check with Amazon Bedrock.

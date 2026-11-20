@@ -2,6 +2,7 @@ package com.compliancechecker.llm;
 
 import com.compliancechecker.model.CheckResponse;
 import com.compliancechecker.model.ProblemCategory;
+import com.compliancechecker.service.SensitiveDataScanner;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -11,7 +12,7 @@ class MockLlmClientTest {
 
 	private static final String RULES = "# Rules\n- No personal data.";
 
-	private final MockLlmClient mock = new MockLlmClient();
+	private final MockLlmClient mock = new MockLlmClient(new SensitiveDataScanner());
 
 	@Test
 	void harmlessPromptIsSafe() {
@@ -76,7 +77,7 @@ class MockLlmClientTest {
 		assertThat(result.problems()).containsExactly("Contains confidential company information.");
 		assertThat(result.categories()).containsExactly(ProblemCategory.INSIDER_INFO);
 		assertThat(result.improvedVersion())
-				.isEqualTo("Improve my email. [CONFIDENTIAL CONTENT REMOVED] Keep it short.");
+				.isEqualTo("Improve my email. [SENSITIVE SENTENCE REMOVED] Keep it short.");
 	}
 
 	@Test
@@ -100,11 +101,5 @@ class MockLlmClientTest {
 	@Test
 	void doesNotTreatAmountsOrDatesAsPhoneNumbers() {
 		assertThat(mock.check("Invest 25000 EUR on 2026-11-21 at 3.5 % interest.", RULES).isSafe()).isTrue();
-	}
-
-	@Test
-	void luhnCheck() {
-		assertThat(MockLlmClient.passesLuhnCheck("4111 1111 1111 1111")).isTrue();
-		assertThat(MockLlmClient.passesLuhnCheck("1234 5678 9012 3456")).isFalse();
 	}
 }

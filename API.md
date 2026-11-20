@@ -36,6 +36,27 @@ Server to client payload (`200 OK`):
   compliance rules. It is **not** a real compliance check.
 
 
+## `GET /api/history`
+
+The latest 100 checks, newest first (`200 OK`):
+
+```json
+[
+  {
+    "id": 2,
+    "createdAt": "2026-11-21T10:00:00Z",
+    "isSafe": false,
+    "categories": ["CUSTOMER_DATA"],
+    "improvedVersion": "Reply to [EMAIL] about her loan."
+  }
+]
+```
+
+Only these fields are stored. The **original prompt and the compliance rules are never stored.**
+`improvedVersion` is `null` when it could not be stored safely: when it equals the original prompt (e.g. for safe
+prompts), still contains detectable sensitive data, or is too long.
+
+
 ## Errors
 
 All errors share one shape. Messages are fixed server-side texts and never contain any part of the submitted content.
