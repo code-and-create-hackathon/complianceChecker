@@ -1,18 +1,19 @@
 # CLAUDE.md
 
-## Projekt
-Compliance-Gate für Finanzdienstleister: Prompts laufen zuerst durch unser System und werden gegen interne Compliance-Regeln (Markdown-Upload) geprüft, bevor sie an ein KI-System gehen. DSGVO ist außerhalb des Scopes.
+## Project
+Compliance gate for financial service providers: prompts first pass through our system and are checked against internal compliance rules (Markdown upload) before they are sent to an AI system. GDPR is out of scope.
 
-- **Stage 1:** Online-Website
-- **Stage 2:** Chrome-Extension
+- **Stage 1:** Online website
+- **Stage 2:** Chrome extension
 
 ## Stack
 - LLM: Anthropic
-- Hosting: AWS (kein lokales Hosting)
-- [Frontend] · [Backend] · [Datenbank]
+- Hosting: AWS (no local hosting)
+- [Frontend] · [Backend] · [Database]
 
-## Regeln
-- Schrittweise arbeiten: erst den aktuellen Stand prüfen, dann ändern.
-- MVP für die Demo vor Perfektion.
-- Keine Secrets committen (`.env` + `.gitignore`).
-- [Weitere Konventionen]
+## Rules
+- Work step by step: check the current state first, then make changes.
+- MVP for the demo over perfection.
+- Never commit secrets (`.env` + `.gitignore`).
+- Follow all conventions for human coders in CONTRIBUTING.md.
+- [Further conventions]
