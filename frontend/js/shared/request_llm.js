@@ -1,8 +1,7 @@
 // Shared by website and extension. Payloads: see API.md.
+import { API_URL } from "./config.js";
 import { mockLlm } from "./mock_llm.js";
-
-// TODO: set to the real backend endpoint once it exists.
-const API_URL = "/api/check";
+import { validateRequest, validateResponse } from "./validate.js";
 
 /**
  * Demo-Modus ohne Backend: an mit ?mock=1, aus mit ?mock=0.
@@ -17,21 +16,24 @@ export function isMockMode() {
 /**
  * @param {string} prompt
  * @param {string} compliance
- * @returns {Promise<{isSafe: boolean, problems: string[], improvedVersion: string}>}
+ * @returns {Promise<import("./validate.js").CheckResponse>}
+ * @throws {import("./validate.js").ValidationError} if request or response breaks the contract
  */
 export async function requestLlm(prompt, compliance) {
-  if (isMockMode()) return mockLlm(prompt, compliance);
+  const request = validateRequest({ prompt, compliance });
+
+  if (isMockMode()) return validateResponse(await mockLlm(request.prompt, request.compliance));
 
   let res;
   try {
     res = await fetch(API_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ prompt, compliance }),
+      body: JSON.stringify(request),
     });
   } catch {
     throw new Error("Der Prüfdienst ist nicht erreichbar.");
   }
   if (!res.ok) throw new Error(`Der Prüfdienst hat mit Status ${res.status} geantwortet.`);
-  return res.json();
+  return validateResponse(await res.json());
 }

@@ -1,5 +1,6 @@
 // Website entry point (Stage 1).
 import { requestLlm, isMockMode } from "../shared/request_llm.js";
+import { readComplianceFiles, concatComplianceFiles } from "../shared/compliance_files.js";
 
 const MAX_FILE_BYTES = 1024 * 1024;
 const ACCEPTED_FILE = /\.(md|markdown|txt)$/i;
@@ -12,20 +13,21 @@ const promptInput = form.elements.prompt;
 const fileInput = form.elements.compliance;
 
 const dropzone = byId("dropzone");
-const fileChip = byId("file-chip");
-const fileName = byId("file-name");
-const fileMeta = byId("file-meta");
-const fileRemove = byId("file-remove");
+const fileSummary = byId("compliance-summary");
+const fileStatus = byId("compliance-status");
+const fileList = byId("compliance-files");
+const fileClear = byId("compliance-clear");
+const chipTemplate = byId("file-chip-template");
 const complianceError = byId("compliance-error");
 const promptError = byId("prompt-error");
 const charCount = byId("char-count");
-const submitButton = byId("submit-button");
+const submitButton = byId("check-submit");
 const submitLabel = submitButton.querySelector(".button-label");
 
 const result = byId("result");
 const states = result.querySelectorAll("[data-state]");
 const srStatus = byId("sr-status");
-const errorText = byId("error-text");
+const errorText = byId("error");
 
 // Div 1: Status (sichtbar)
 const statusBox = byId("result-status");
@@ -35,14 +37,16 @@ const safeActions = byId("safe-actions");
 
 // Div 2: Meldungen (versteckt, für Entwickler)
 const messages = byId("result-messages");
-const messageProblems = byId("message-problems");
-const messageImproved = byId("message-improved");
+const messageProblems = byId("result-problems");
+const messageImproved = byId("result-improved-text");
 const messageRaw = byId("message-raw");
 
 const numberFormat = new Intl.NumberFormat("de-DE");
 
-let complianceText = "";
+/** @type {(import("../shared/compliance_files.js").ComplianceFile & {size: number})[]} */
+let complianceFiles = [];
 let busy = false;
+let readingFiles = false;
 
 // ---------- Ergebnis ----------
 
@@ -51,6 +55,13 @@ function setState(name) {
     state.hidden = state.dataset.state !== name;
   });
   result.setAttribute("aria-busy", String(name === "loading"));
+}
+
+/** Verwirft das letzte Ergebnis, sobald sich Regeln oder Prompt ändern. */
+function resetResult() {
+  if (busy) return;
+  fillMessages(null);
+  setState("empty");
 }
 
 function announce(message) {
@@ -127,6 +138,13 @@ function setComplianceError(message) {
   dropzone.classList.toggle("is-invalid", Boolean(message));
 }
 
+/** Hinweis unter dem Upload, ohne das Feld als ungültig zu markieren (es sind noch Dateien geladen). */
+function setComplianceNotice(message) {
+  setComplianceError("");
+  complianceError.textContent = message;
+  complianceError.hidden = !message;
+}
+
 // ---------- Datei-Upload ----------
 
 function formatSize(bytes) {
@@ -140,47 +158,85 @@ function countRules(markdown) {
     .filter((line) => /^\s*(?:[-*+]|\d+[.)])\s+\S/.test(line)).length;
 }
 
-function clearFile() {
-  complianceText = "";
-  fileInput.value = "";
-  fileChip.hidden = true;
-  dropzone.hidden = false;
-}
-
-async function loadFile(file) {
-  if (!file) return;
-
-  if (!ACCEPTED_FILE.test(file.name)) {
-    clearFile();
-    setComplianceError("Bitte eine Markdown- oder Textdatei (.md, .txt) wählen.");
-    return;
-  }
-  if (file.size > MAX_FILE_BYTES) {
-    clearFile();
-    setComplianceError("Die Datei ist größer als 1 MB.");
-    return;
-  }
-
-  const text = await file.text();
-  if (!text.trim()) {
-    clearFile();
-    setComplianceError("Die Datei ist leer.");
-    return;
-  }
-
-  complianceText = text;
+function ruleSummary(text) {
   const rules = countRules(text);
-  fileName.textContent = file.name;
-  fileMeta.textContent =
-    `${formatSize(file.size)} · ` +
-    (rules > 0 ? `${numberFormat.format(rules)} ${rules === 1 ? "Regel" : "Regeln"}` : "Regelwerk geladen");
-
-  setComplianceError("");
-  dropzone.hidden = true;
-  fileChip.hidden = false;
+  return rules > 0 ? `${numberFormat.format(rules)} ${rules === 1 ? "Regel" : "Regeln"}` : "Regelwerk geladen";
 }
 
-fileInput.addEventListener("change", () => loadFile(fileInput.files[0]));
+function renderFiles() {
+  fileList.replaceChildren(
+    ...complianceFiles.map((file, index) => {
+      const chip = chipTemplate.content.firstElementChild.cloneNode(true);
+      chip.querySelector(".file-name").textContent = file.name;
+      chip.querySelector(".file-meta").textContent = `${formatSize(file.size)} · ${ruleSummary(file.text)}`;
+      const remove = chip.querySelector(".file-remove");
+      remove.dataset.index = String(index);
+      remove.setAttribute("aria-label", `${file.name} entfernen`);
+      return chip;
+    }),
+  );
+  const count = complianceFiles.length;
+  fileStatus.textContent = count === 1 ? "1 Datei geladen" : `${numberFormat.format(count)} Dateien geladen`;
+  fileSummary.hidden = count === 0;
+}
+
+function clearFiles() {
+  complianceFiles = [];
+  fileInput.value = "";
+  setComplianceError("");
+  renderFiles();
+  resetResult();
+}
+
+function setReadingFiles(value) {
+  readingFiles = value;
+  submitButton.disabled = busy || readingFiles;
+}
+
+/**
+ * Fügt die Dateien zu den geladenen hinzu (gleicher Name ersetzt die alte Datei).
+ * Falsche Typen, zu große und leere Dateien werden verworfen und gemeldet.
+ */
+async function loadFiles(fileListLike) {
+  const picked = [...(fileListLike || [])];
+  fileInput.value = "";
+  if (!picked.length) return;
+
+  const skipped = [];
+  const candidates = picked.filter((file) => {
+    if (!ACCEPTED_FILE.test(file.name)) skipped.push(`${file.name} (kein .md/.txt)`);
+    else if (file.size > MAX_FILE_BYTES) skipped.push(`${file.name} (größer als 1 MB)`);
+    else return true;
+    return false;
+  });
+
+  setReadingFiles(true);
+  resetResult();
+  try {
+    const { files, emptyNames } = await readComplianceFiles(candidates);
+    emptyNames.forEach((name) => skipped.push(`${name} (leer)`));
+    const sizes = new Map(candidates.map((file) => [file.name, file.size]));
+    const loaded = files.map((file) => ({ ...file, size: sizes.get(file.name) ?? 0 }));
+    const newNames = new Set(loaded.map((file) => file.name));
+    complianceFiles = [...complianceFiles.filter((file) => !newNames.has(file.name)), ...loaded];
+    renderFiles();
+
+    const message = skipped.length ? `Nicht übernommen: ${skipped.join(", ")}.` : "";
+    if (complianceFiles.length) setComplianceNotice(message);
+    else setComplianceError(message || "Keine gültige Datei geladen.");
+  } catch (error) {
+    // Laut scheitern: keine halb geladenen oder veralteten Regeln weiterverwenden.
+    complianceFiles = [];
+    renderFiles();
+    setComplianceError(
+      `Datei konnte nicht gelesen werden (${error.message || error}). Bitte alle Regeln erneut hochladen.`,
+    );
+  } finally {
+    setReadingFiles(false);
+  }
+}
+
+fileInput.addEventListener("change", () => loadFiles(fileInput.files));
 
 dropzone.addEventListener("click", (event) => {
   if (event.target !== fileInput) fileInput.click();
@@ -198,7 +254,7 @@ dropzone.addEventListener("dragleave", (event) => {
 dropzone.addEventListener("drop", (event) => {
   event.preventDefault();
   dropzone.classList.remove("is-dragover");
-  loadFile(event.dataTransfer.files[0]);
+  loadFiles(event.dataTransfer.files);
 });
 
 // Verhindert, dass der Browser eine danebengezogene Datei öffnet.
@@ -206,19 +262,31 @@ dropzone.addEventListener("drop", (event) => {
   window.addEventListener(type, (event) => event.preventDefault());
 });
 
-fileRemove.addEventListener("click", () => {
-  clearFile();
+fileList.addEventListener("click", (event) => {
+  const button = event.target.closest(".file-remove");
+  if (!button) return;
+  complianceFiles.splice(Number(button.dataset.index), 1);
+  setComplianceError("");
+  renderFiles();
+  resetResult();
+  fileInput.focus();
+});
+
+fileClear.addEventListener("click", () => {
+  clearFiles();
   fileInput.focus();
 });
 
 // ---------- Prompt ----------
 
 function updateCharCount() {
-  charCount.textContent = `${numberFormat.format(promptInput.value.length)} Zeichen`;
+  // Zeichen = Unicode-Codepoints wie in API.md (ein Emoji zählt als 1).
+  charCount.textContent = `${numberFormat.format([...promptInput.value].length)} Zeichen`;
 }
 
 promptInput.addEventListener("input", () => {
   updateCharCount();
+  resetResult();
   if (promptInput.value.trim()) setFieldError(promptInput, promptError, "");
 });
 
@@ -233,19 +301,20 @@ promptInput.addEventListener("keydown", (event) => {
 
 function setBusy(value) {
   busy = value;
-  submitButton.disabled = value;
+  submitButton.disabled = value || readingFiles;
   submitLabel.textContent = value ? "Wird geprüft …" : "Prüfen";
 }
 
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
-  if (busy) return;
+  if (busy || readingFiles) return;
 
   const prompt = promptInput.value.trim();
-  setComplianceError(complianceText ? "" : "Bitte laden Sie Ihre Compliance-Regeln hoch.");
+  const hasRules = complianceFiles.length > 0;
+  if (!hasRules) setComplianceError("Bitte laden Sie Ihre Compliance-Regeln hoch.");
   setFieldError(promptInput, promptError, prompt ? "" : "Bitte geben Sie einen Prompt ein.");
 
-  if (!complianceText) return fileInput.focus();
+  if (!hasRules) return fileInput.focus();
   if (!prompt) return promptInput.focus();
 
   setBusy(true);
@@ -254,7 +323,7 @@ form.addEventListener("submit", async (event) => {
   announce("Prüfung läuft.");
 
   try {
-    renderResult(await requestLlm(prompt, complianceText));
+    renderResult(await requestLlm(prompt, concatComplianceFiles(complianceFiles)));
   } catch (error) {
     renderError(error);
   } finally {

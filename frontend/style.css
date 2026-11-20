@@ -240,6 +240,37 @@ svg {
   background: var(--primary-soft);
 }
 
+.file-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.file-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 12px;
+  margin-bottom: 8px;
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+}
+
+.link-button {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--primary);
+  font: inherit;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.link-button:hover { text-decoration: underline; }
+
 .file-info {
   display: grid;
   flex: 1;
@@ -551,3 +582,4 @@ kbd {
   .workspace { grid-template-columns: minmax(0, 1fr); }
   .card-result { position: static; }
 }
+
