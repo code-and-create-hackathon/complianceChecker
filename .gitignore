@@ -1,0 +1,23 @@
+# IDE
+.idea/
+*.iml
+*.iws
+*.ipr
+.vscode/
+
+# Build output
+target/
+backend/.mvn/wrapper/maven-wrapper.jar
+
+# Secrets – never commit (see CONTRIBUTING.md)
+.env
+.env.*
+
+# Local H2 database files
+data/
+*.mv.db
+*.trace.db
+
+# Logs & OS files
+*.log
+.DS_Store

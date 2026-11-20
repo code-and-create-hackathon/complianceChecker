@@ -1,0 +1,13 @@
+spring:
+  application:
+    name: compliance-checker
+  jpa:
+    open-in-view: false
+
+server:
+  port: ${PORT:8080}
+  error:
+    # Never echo request details back to the client.
+    include-message: never
+    include-binding-errors: never
+    include-stacktrace: never
