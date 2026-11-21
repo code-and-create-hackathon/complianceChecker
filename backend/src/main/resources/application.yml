@@ -1,0 +1,33 @@
+spring:
+  application:
+    name: compliance-checker
+  datasource:
+    # File-based H2, survives restarts. Switch to PostgreSQL by setting HISTORY_DB_URL (+ user/password).
+    url: "${HISTORY_DB_URL:jdbc:h2:file:./data/history}"
+    username: "${HISTORY_DB_USER:sa}"
+    password: "${HISTORY_DB_PASSWORD:}"
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: update
+    # SQL logging stays off so no stored values ever appear in logs.
+    show-sql: false
+
+llm:
+  # "mock" (default): rule-based simulation, no AWS calls. "bedrock": real check with Amazon Bedrock.
+  provider: "${LLM_PROVIDER:mock}"
+  # Bedrock only. Amazon Nova 2 Lite via the EU geo inference profile (no in-region access in eu-north-1).
+  model-id: "${LLM_MODEL_ID:eu.amazon.nova-2-lite-v1:0}"
+  aws-region: "${AWS_REGION:eu-north-1}"
+
+cors:
+  # Origins allowed to call /api/** from another origin, e.g. the browser extension. Comma-separated patterns.
+  allowed-origin-patterns: "${CORS_ALLOWED_ORIGINS:chrome-extension://*}"
+
+server:
+  port: ${PORT:8080}
+  error:
+    # Never echo request details back to the client.
+    include-message: never
+    include-binding-errors: never
+    include-stacktrace: never
