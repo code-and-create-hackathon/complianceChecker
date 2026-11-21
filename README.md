@@ -1,15 +1,15 @@
 # complianceChecker
 
 ## The problem
-people post sensitve data in AI chats neglecting their compliance duties.
+People post sensitive data in AI chats, neglecting their compliance duties.
 
 ## Roadmap
 **Prio 1**
  - compliance as external website first (minimal viable version)
- - as webbrowser extension
+ - as web browser extension
 
 **Prio 2**
-- add suggestions cencoring data
+- add suggestions censoring data
 - company accounts
   
 **Prio 3**
@@ -20,7 +20,7 @@ people post sensitve data in AI chats neglecting their compliance duties.
 It can run on a company server, possibly locally, behind a well-defined API.
 Avoids potential gdpr problems if servers are self-hosted.
 
-## Infrasturcture - final version
+## Infrastructure - final version
 
 ```mermaid
 flowchart LR
@@ -31,7 +31,7 @@ flowchart LR
     A -->|if isSafe = true| C[💬 Target LLM Chat]
 ```
 
-## Infra-structure - first version
+## Infrastructure - first version
 
 
 ```mermaid
@@ -130,7 +130,7 @@ With these rules the mock handles all 9 prompts in [`Testdata/test-prompts.md`](
 address or a company without a legal form.
 
 API.md allows no extra response field, so mock results are not marked in the response. The backend logs a warning at
-startup instead: `LLM provider 'mock' is active: results are simulated`.
+startup instead: `LLM provider 'mock' is active: results are simulated, no AWS calls are made.`
 
 ### Real check with Amazon Bedrock
 
@@ -174,7 +174,7 @@ AWS_PROFILE=hackathon ./mvnw spring-boot:run     # LLM_PROVIDER=bedrock is the d
 | `POST` | `/api/check`   | Check a prompt against compliance rules     |
 | `GET`  | `/api/history` | The latest 100 checks, newest first         |
 
-`POST /api/check` follows [API.md](API.md) exactly. The rest below is backend-only and not (yet) part of API.md.
+`POST /api/check` and the error responses follow [API.md](API.md) exactly. `GET /api/history` is backend-only and not (yet) part of API.md.
 
 ### `GET /api/history`
 
@@ -191,22 +191,7 @@ AWS_PROFILE=hackathon ./mvnw spring-boot:run     # LLM_PROVIDER=bedrock is the d
 
 ### Error responses
 
-```json
-{
-  "error": "INVALID_REQUEST",
-  "message": "The request is invalid. See fieldErrors.",
-  "fieldErrors": { "prompt": "must not be empty" },
-  "requestId": "6f1c..."
-}
-```
-
-| Status | `error`                  | When                                       |
-|--------|--------------------------|--------------------------------------------|
-| 400    | `INVALID_REQUEST`        | empty/missing/too long field, invalid JSON |
-| 405    | `METHOD_NOT_ALLOWED`     | wrong HTTP method                          |
-| 415    | `UNSUPPORTED_MEDIA_TYPE` | `Content-Type` is not `application/json`   |
-| 502    | `LLM_UNAVAILABLE`        | the LLM could not be reached or failed     |
-| 500    | `INTERNAL_ERROR`         | anything else                              |
+All endpoints answer errors with the same JSON body, defined in [API.md](API.md#error-responses).
 
 ## Privacy
 
