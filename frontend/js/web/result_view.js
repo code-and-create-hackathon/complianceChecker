@@ -1,4 +1,4 @@
-// Result card: states (empty, loading, status, error) and the hidden messages.
+// Result panel: states (empty, loading, status, error), counts, findings list and the hidden messages.
 import { isMockMode } from "../shared/request_llm.js";
 import { isBlocking } from "../shared/validate.js";
 import { $, announce, plural } from "./dom.js";
@@ -15,11 +15,56 @@ const statusText = $("status-text");
 const safeActions = $("safe-actions");
 const suggestionActions = $("suggestion-actions");
 
+// Counts and findings list (visible)
+const counts = $("result-counts");
+const countViolations = $("count-violations");
+const countNotices = $("count-notices");
+const findingsBlock = $("findings-block");
+const findingList = $("result-findings");
+
 // Div 2: messages (hidden, for developers)
 const messages = $("result-messages");
 const messageProblems = $("result-problems");
 const messageImproved = $("result-improved-text");
 const messageRaw = $("message-raw");
+
+const SEVERITY_LABELS = { critical: "Critical", high: "High", medium: "Medium", low: "Low" };
+
+function element(tag, className, text) {
+  const el = document.createElement(tag);
+  el.className = className;
+  el.textContent = text;
+  return el;
+}
+
+/** Visible findings: one entry per problem. Violations red, notices ("low") brown. */
+function renderFindings(problems) {
+  findingList.replaceChildren(
+    ...problems.map((p, index) => {
+      const li = element("li", `finding ${isBlocking(p) ? "is-crit" : "is-warn"}`, "");
+      const head = element("span", "finding-head", "");
+      head.append(
+        element("span", "finding-rule", p.ruleId),
+        element("span", "severity-badge", SEVERITY_LABELS[p.severity] ?? p.severity),
+      );
+      const body = element("span", "finding-body", "");
+      body.append(head);
+      if (p.location) body.append(element("span", "finding-location", `“${p.location}”`));
+      body.append(element("span", "finding-message", p.message));
+      li.append(element("span", "finding-num", String(index + 1)), body);
+      return li;
+    }),
+  );
+  findingsBlock.hidden = problems.length === 0;
+
+  const violations = problems.filter(isBlocking).length;
+  const notices = problems.length - violations;
+  countViolations.textContent = plural(violations, "violation", "violations");
+  countNotices.textContent = plural(notices, "notice", "notices");
+  countViolations.hidden = violations === 0;
+  countNotices.hidden = notices === 0;
+  counts.hidden = problems.length === 0;
+}
 
 /** @param {"empty" | "loading" | "status" | "error"} name */
 export function setState(name) {
@@ -45,6 +90,7 @@ function fillMessages(data) {
   );
   messageImproved.textContent = (data?.improvedVersion || "").trim();
   messageRaw.textContent = data ? JSON.stringify(data, null, 2) : "";
+  renderFindings(problems);
   return problems;
 }
 

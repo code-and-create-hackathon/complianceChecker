@@ -93,7 +93,9 @@
       </form>
     </section>
 
-    <section class="card card-result" id="result" aria-labelledby="result-title">
+    <section class="result-panel" id="result" aria-labelledby="result-title">
+      <!-- Takes the height of the left card; the content scrolls inside this box, never the page. -->
+      <div class="result-scroll">
       <h2 class="card-title" id="result-title">Result</h2>
 
       <div class="state state-empty" data-state="empty">
@@ -122,18 +124,32 @@
             <p class="status-text" id="status-text"></p>
           </div>
         </div>
+
+        <!-- Counts: violations (critical/high/medium) and notices (low). -->
+        <div class="result-counts" id="result-counts" hidden>
+          <span class="count-badge is-crit" id="count-violations"></span>
+          <span class="count-badge is-warn" id="count-notices"></span>
+        </div>
+
+        <!-- One entry per problem from the API response. -->
+        <div class="result-block" id="findings-block" hidden>
+          <h3 class="result-subtitle">Findings</h3>
+          <ol class="finding-list" id="result-findings"></ol>
+        </div>
+
         <div class="actions" id="safe-actions" hidden>
           <button type="button" class="button button-secondary" data-copy="prompt">
             <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="12" height="12" rx="2" /><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1" /></svg>
             <span class="button-label">Copy prompt</span>
           </button>
         </div>
-        <!-- Unstyled for now: theming is up to the design side. -->
+
         <!-- Shown only for an unsafe result with a non-empty suggestion; hidden again on any change. -->
-        <div id="suggestion-actions" hidden>
-          <div id="result-improved"><pre id="result-improved-text"></pre></div>
+        <div class="result-block" id="suggestion-actions" hidden>
+          <h3 class="result-subtitle">Sanitised version</h3>
+          <div id="result-improved"><pre class="sanitized" id="result-improved-text"></pre></div>
           <div class="actions">
-            <button type="button" id="apply-suggestion">Apply suggestion</button>
+            <button type="button" class="result-action" id="apply-suggestion">Apply sanitised version</button>
           </div>
         </div>
       </div>
@@ -165,6 +181,7 @@
       <div id="result-messages" data-is-safe="" hidden>
         <ul id="result-problems"></ul>
         <pre id="message-raw"></pre>
+      </div>
       </div>
 
       <p class="visually-hidden" id="sr-status" role="status" aria-live="polite"></p>
