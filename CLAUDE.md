@@ -7,7 +7,7 @@ Compliance gate for financial service providers: prompts first pass through our 
 - **Stage 2:** Chrome extension
 
 ## Stack
-- LLM: Anthropic
+- LLM: Amazon Nova
 - Hosting: AWS (no local hosting)
 - [Frontend] · [Backend] · [Database]
 
