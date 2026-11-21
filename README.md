@@ -98,6 +98,61 @@ cd backend
 
 Example prompts and a fictional compliance guide for manual testing are in [`Testdata/`](Testdata).
 
+## Running the full demo locally (step by step)
+
+This is the setup that works end to end: backend with real Bedrock checks, website for the administrator, extension
+for the worker. Tested with OpenJDK 25 and Chromium on Fedora.
+
+1. **AWS credentials.** Put a profile into `~/.aws/credentials` (or use `aws sso login`) whose user may call
+   `bedrock:InvokeModel` for Nova 2 Lite in the EU regions (see [Real check with Amazon Bedrock](#real-check-with-amazon-bedrock)).
+   Keys never go into the repository.
+2. **Backend** (terminal 1, keep it running):
+
+   ```bash
+   cd backend
+   ADMIN_CODE=choose-a-long-random-code AWS_PROFILE=<your-profile> ./mvnw spring-boot:run
+   ```
+
+   Without `ADMIN_CODE` the administrator cannot log in. Without AWS, use `LLM_PROVIDER=mock` instead of `AWS_PROFILE`.
+3. **Website** (http://localhost:8080): log in as `admin` with the admin code → upload
+   `Testdata/compliance-guide-musterfinanz.md` → **Publish as company policy** → under **Team** add a worker, e.g. `erika`.
+4. **Extension** (terminal 2): `BACKEND_ORIGIN` in `frontend/js/shared/config.js` must be `http://localhost:8080`
+   (the default). Then:
+
+   ```bash
+   cd extension
+   npm install
+   npm run build    # then load extension/.output/chrome-mv3 via chrome://extensions → Load unpacked
+   # or: npm run dev  (starts its own browser with the extension and hot reload)
+   ```
+
+   `npm run dev` only finds Google Chrome on its own. For another Chromium browser, create the git-ignored
+   `extension/web-ext.config.ts` on your machine:
+
+   ```ts
+   import { defineWebExtConfig } from 'wxt';
+
+   export default defineWebExtConfig({
+     binaries: { chrome: '/usr/bin/chromium-browser' }, // path to your browser
+     // Keeps a profile between runs, so the ChatGPT login and the extension login survive restarts.
+     chromiumArgs: ['--user-data-dir=./.wxt/chrome-data'],
+   });
+   ```
+
+5. **Log in as the worker:** click the extension's toolbar icon → log in as `erika`. The page shows the published policy
+   version.
+6. **Try it** on chatgpt.com, gemini.google.com or claude.ai: `Pay DE89 3704 0044 0532 0130 00` is blocked with the
+   suggestion `[IBAN_1]`; `Hello` is sent normally. More examples are in [`Testdata/test-prompts.md`](Testdata/test-prompts.md).
+
+**If something does not work:**
+
+- *"Not logged in"* in the chat after restarting the backend: sessions are kept in memory, log in again on the
+  extension's settings page (and on the website).
+- *"AWS credentials are missing or expired"*: renew them (`aws sso login`) or check `AWS_PROFILE`, then restart the
+  backend.
+- Changed `BACKEND_ORIGIN`: rebuild the extension and reload it in `chrome://extensions`.
+- *"No compliance policy has been published yet"*: the administrator has to publish one first (step 3).
+
 ## Configuration
 
 All settings are environment variables; the defaults work without any setup.
