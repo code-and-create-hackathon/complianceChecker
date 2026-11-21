@@ -335,6 +335,15 @@ svg {
   font: inherit;
 }
 
+/* Passages the sanitised version changed compared to the prompt. */
+.sanitized .changed {
+  border-radius: 3px;
+  background: #E8F4EE;
+  color: #146C43;
+  font-weight: 600;
+  text-decoration: none;
+}
+
 .result-action {
   display: inline-flex;
   align-items: center;
