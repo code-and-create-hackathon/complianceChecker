@@ -24,6 +24,7 @@
   }
 }
 body { margin: 0; background: var(--bg); color: var(--fg); }
+[hidden] { display: none !important; }
 main { max-width: 640px; margin: 0 auto; padding: 32px 16px; }
 h1 { font-size: 1.5rem; margin: 0 0 4px; }
 .hint { color: var(--muted); font-size: 0.9rem; margin: 0 0 20px; display: block; }
@@ -48,3 +49,16 @@ h1 { font-size: 1.5rem; margin: 0 0 4px; }
 .link-button {
   background: none; border: 0; padding: 4px; color: var(--accent); cursor: pointer; font: inherit;
 }
+#login-form { display: grid; gap: 6px; max-width: 360px; }
+#login-form label { font-weight: 600; margin-top: 8px; }
+#login-form input {
+  padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px;
+  background: var(--bg); color: var(--fg); font: inherit;
+}
+#login-form button {
+  margin-top: 12px; padding: 8px 14px; border: 0; border-radius: 8px;
+  background: var(--accent); color: var(--bg); font: inherit; font-weight: 600; cursor: pointer;
+}
+#login-form button:disabled { opacity: 0.6; cursor: progress; }
+#login-form .hint { margin-top: 8px; }
+.hint-inline { color: var(--muted); font-weight: 400; }

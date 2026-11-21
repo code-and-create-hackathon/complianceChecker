@@ -4,13 +4,13 @@
 export const MESSAGE = {
   /** {type, prompt} → CheckReply */
   check: 'check',
-  /** {type} → no reply */
+  /** {type} → no reply. Opens the settings page: rules in demo mode, login with a backend. */
   openRules: 'openRules',
 };
 
 /**
  * @typedef {{ok: true, result: import('@shared/validate.js').CheckResponse, mock: boolean}
- *         | {ok: false, error: 'noRules' | 'failed', message: string, mock: boolean}} CheckReply
+ *         | {ok: false, error: 'noRules' | 'notLoggedIn' | 'failed', message: string, mock: boolean}} CheckReply
  */
 
 /** @returns {CheckReply} */

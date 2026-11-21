@@ -86,6 +86,26 @@ export default defineContentScript({
         return;
       }
 
+      if (!reply.ok && reply.error === 'notLoggedIn') {
+        dialog.show({
+          tone: 'error',
+          title: 'Not logged in',
+          text: 'Log in to the Compliance Checker before sending prompts. The prompt was not sent.',
+          actions: [
+            { label: 'Cancel', onClick: finish },
+            {
+              label: 'Open login page',
+              primary: true,
+              onClick: () => {
+                sendOpenRules();
+                finish();
+              },
+            },
+          ],
+        });
+        return;
+      }
+
       if (!reply.ok) {
         dialog.show({
           tone: 'error',
