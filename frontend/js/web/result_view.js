@@ -3,6 +3,8 @@ import { isMockMode } from "../shared/request_llm.js";
 import { isBlocking } from "../shared/validate.js";
 import { $, announce, plural } from "./dom.js";
 import { state } from "./state.js";
+import { showHighlights, clearHighlights } from "./prompt_highlight.js";
+import { changedSegments } from "./diff.js";
 
 const result = $("result");
 const states = result.querySelectorAll("[data-state]");
@@ -117,8 +119,24 @@ function showStatus(isSafe, violations, notices, hasSuggestion) {
 
 export function showLoading() {
   fillMessages(null);
+  clearHighlights();
   setState("loading");
   announce("Checking.");
+}
+
+/** Marks in green what the sanitised version changed compared to the checked prompt (text stays the same). */
+function markChanges(prompt) {
+  const suggestion = getSuggestion();
+  if (!suggestion) return;
+  messageImproved.replaceChildren(
+    ...changedSegments(prompt, suggestion).map(({ text, changed }) => {
+      if (!changed) return document.createTextNode(text);
+      const ins = document.createElement("ins");
+      ins.className = "changed";
+      ins.textContent = text;
+      return ins;
+    }),
+  );
 }
 
 /** The improved prompt from the last result ("" if none). */
@@ -130,12 +148,18 @@ export function getSuggestion() {
 export function resetResult() {
   if (state.busy) return;
   fillMessages(null);
+  clearHighlights();
   setState("empty");
 }
 
-/** @param {import("../shared/validate.js").CheckResponse} data */
-export function renderResult(data) {
+/**
+ * @param {import("../shared/validate.js").CheckResponse} data
+ * @param {string} prompt  the prompt that was checked (the problems' locations are searched in it)
+ */
+export function renderResult(data, prompt) {
   const problems = fillMessages(data);
+  showHighlights(prompt, problems);
+  markChanges(prompt);
   const violations = problems.filter(isBlocking).length;
   showStatus(Boolean(data.isSafe), violations, problems.length - violations, Boolean(getSuggestion()));
   document.dispatchEvent(new CustomEvent("compliance:result", { detail: data }));
