@@ -3,7 +3,7 @@ package com.compliancechecker.model;
 import java.util.Map;
 
 /**
- * Body of every error response, see API.md. All texts are fixed server-side wording and never contain submitted
+ * Body of every error response, see "Error responses" in API.md. All texts are fixed server-side wording and never contain submitted
  * content.
  *
  * @param error       stable machine-readable code, e.g. {@code INVALID_REQUEST}

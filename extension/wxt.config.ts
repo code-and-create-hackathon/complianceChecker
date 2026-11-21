@@ -10,7 +10,7 @@ export default defineConfig({
     permissions: ['storage'],
     // No popup: clicking the toolbar icon opens the rules (options) page, see background.js.
     action: { default_title: 'Compliance Checker – rules' },
-    // Lets the service worker call the backend without CORS headers on the server.
+    // Lets the service worker call the backend. The backend also allows extensions via CORS_ALLOWED_ORIGINS.
     // Empty BACKEND_ORIGIN → demo mode, no network access needed.
     host_permissions: BACKEND_ORIGIN ? [`${new URL(BACKEND_ORIGIN).origin}/*`] : [],
   },
