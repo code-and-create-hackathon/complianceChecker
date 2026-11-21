@@ -1,5 +1,6 @@
 package com.compliancechecker.history;
 
+import com.compliancechecker.account.AppUser;
 import com.compliancechecker.history.HistoryEntry.Finding;
 import com.compliancechecker.model.CheckResponse;
 import org.slf4j.Logger;
@@ -34,20 +35,23 @@ public class HistoryService {
 		this.clock = clock;
 	}
 
-	/** Saves a check. A failure to save is logged and does not fail the check itself. */
-	public void record(CheckResponse result) {
+	/** Saves a check made by {@code username}. A failure to save is logged and does not fail the check itself. */
+	public void record(CheckResponse result, String username) {
 		List<Finding> findings = result.problems().stream()
 				.map(problem -> new Finding(problem.safeRuleId(), problem.severity()))
 				.toList();
 		try {
-			repository.save(new HistoryEntry(Instant.now(clock), result.isSafe(), findings));
+			repository.save(new HistoryEntry(Instant.now(clock), username, result.isSafe(), findings));
 		}
 		catch (DataAccessException ex) {
 			log.warn("history entry not saved exception={}", ex.getClass().getSimpleName());
 		}
 	}
 
-	public List<HistoryEntry> latestEntries() {
-		return repository.findTop100ByOrderByCreatedAtDescIdDesc();
+	/** The administrator sees the checks of all users, a worker only their own. */
+	public List<HistoryEntry> latestEntries(AppUser viewer) {
+		return viewer.isAdmin()
+				? repository.findTop100ByOrderByCreatedAtDescIdDesc()
+				: repository.findTop100ByUsernameOrderByCreatedAtDescIdDesc(viewer.getUsername());
 	}
 }

@@ -1,5 +1,10 @@
 package com.compliancechecker.history;
 
+import com.compliancechecker.TestAccounts;
+import com.compliancechecker.account.AuthService;
+import com.compliancechecker.account.UserRepository;
+import com.compliancechecker.account.UserService;
+import com.compliancechecker.policy.PolicyService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -8,6 +13,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.json.JsonCompareMode;
@@ -24,8 +30,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * End to end in mock mode (no AWS) with an in-memory H2 database: POST /api/check, then GET /api/history, then a
- * look at the raw database rows. All test data is made up.
+ * End to end in mock mode (no AWS) with an in-memory H2 database: POST /api/check as a logged-in worker, then
+ * GET /api/history, then a look at the raw database rows. All test data is made up.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -44,9 +50,27 @@ class HistoryIntegrationTest {
 	@Autowired
 	private JdbcTemplate jdbcTemplate;
 
+	@Autowired
+	private UserService userService;
+
+	@Autowired
+	private UserRepository userRepository;
+
+	@Autowired
+	private AuthService authService;
+
+	@Autowired
+	private PolicyService policyService;
+
+	private String erika;
+	private String max;
+
 	@BeforeEach
-	void emptyHistory() {
+	void emptyHistoryWithPolicyAndWorkers() {
 		repository.deleteAll();
+		TestAccounts.publishPolicy(policyService, userRepository, "# Rules");
+		erika = TestAccounts.workerAuthorization(userService, authService, "erika");
+		max = TestAccounts.workerAuthorization(userService, authService, "max");
 	}
 
 	@Test
@@ -54,9 +78,10 @@ class HistoryIntegrationTest {
 		check(SAFE_PROMPT);
 		check("Reply to " + EMAIL + " about her loan.");
 
-		mockMvc.perform(get("/api/history"))
+		mockMvc.perform(get("/api/history").header(HttpHeaders.AUTHORIZATION, erika))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.length()").value(2))
+				.andExpect(jsonPath("$[0].username").value("erika"))
 				.andExpect(jsonPath("$[0].isSafe").value(false))
 				.andExpect(jsonPath("$[0].findings[0].ruleId").value("R-01"))
 				.andExpect(jsonPath("$[0].findings[0].severity").value("critical"))
@@ -66,6 +91,21 @@ class HistoryIntegrationTest {
 				.andExpect(jsonPath("$[1].isSafe").value(true))
 				.andExpect(jsonPath("$[1].findings").isEmpty())
 				.andExpect(jsonPath("$[1].improvedVersion").doesNotExist());
+	}
+
+	@Test
+	void workerSeesOnlyOwnChecksAndAdminSeesAll() throws Exception {
+		check(SAFE_PROMPT, erika);
+		check(SAFE_PROMPT, max);
+		check(SAFE_PROMPT, max);
+
+		mockMvc.perform(get("/api/history").header(HttpHeaders.AUTHORIZATION, erika))
+				.andExpect(jsonPath("$.length()").value(1))
+				.andExpect(jsonPath("$[0].username").value("erika"));
+		mockMvc.perform(get("/api/history").header(HttpHeaders.AUTHORIZATION,
+						TestAccounts.adminAuthorization(authService)))
+				.andExpect(jsonPath("$.length()").value(3));
+		mockMvc.perform(get("/api/history")).andExpect(status().isUnauthorized());
 	}
 
 	@Test
@@ -97,7 +137,7 @@ class HistoryIntegrationTest {
 
 		Map<String, Object> row = jdbcTemplate.queryForList("SELECT * FROM compliance_check").getFirst();
 
-		assertThat(row.keySet()).containsExactlyInAnyOrder("ID", "CREATED_AT", "SAFE", "FINDINGS");
+		assertThat(row.keySet()).containsExactlyInAnyOrder("ID", "CREATED_AT", "USERNAME", "SAFE", "FINDINGS");
 	}
 
 	@Test
@@ -109,8 +149,14 @@ class HistoryIntegrationTest {
 	}
 
 	private org.springframework.test.web.servlet.ResultActions check(String prompt) throws Exception {
-		String body = "{\"prompt\":\"%s\",\"compliance\":\"# Rules\"}".formatted(prompt);
-		return mockMvc.perform(post("/api/check").contentType(MediaType.APPLICATION_JSON).content(body))
+		return check(prompt, erika);
+	}
+
+	private org.springframework.test.web.servlet.ResultActions check(String prompt, String authorization)
+			throws Exception {
+		String body = "{\"prompt\":\"%s\"}".formatted(prompt);
+		return mockMvc.perform(post("/api/check").header(HttpHeaders.AUTHORIZATION, authorization)
+						.contentType(MediaType.APPLICATION_JSON).content(body))
 				.andExpect(status().isOk());
 	}
 }

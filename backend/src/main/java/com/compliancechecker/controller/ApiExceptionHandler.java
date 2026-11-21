@@ -1,6 +1,7 @@
 package com.compliancechecker.controller;
 
 import com.compliancechecker.llm.LlmException;
+import com.compliancechecker.model.ApiException;
 import com.compliancechecker.model.ErrorResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -31,7 +32,7 @@ public class ApiExceptionHandler {
 	ResponseEntity<ErrorResponse> handleInvalidFields(MethodArgumentNotValidException ex) {
 		Map<String, String> fieldErrors = new TreeMap<>();
 		for (FieldError fieldError : ex.getBindingResult().getFieldErrors()) {
-			// Messages come from the annotations in CheckRequest and never contain the rejected value.
+			// Messages come from the validation annotations of the request records and never contain the rejected value.
 			fieldErrors.putIfAbsent(fieldError.getField(), fieldError.getDefaultMessage());
 		}
 		return respond(HttpStatus.BAD_REQUEST, "INVALID_REQUEST", "The request is invalid. See fieldErrors.",
@@ -42,6 +43,11 @@ public class ApiExceptionHandler {
 	ResponseEntity<ErrorResponse> handleUnreadableBody(HttpMessageNotReadableException ex) {
 		return respond(HttpStatus.BAD_REQUEST, "INVALID_REQUEST",
 				"The request body is missing or is not valid JSON.", Map.of(), ex);
+	}
+
+	@ExceptionHandler(ApiException.class)
+	ResponseEntity<ErrorResponse> handleApiException(ApiException ex) {
+		return respond(ex.status(), ex.error(), ex.getMessage(), Map.of(), ex);
 	}
 
 	@ExceptionHandler(LlmException.class)
