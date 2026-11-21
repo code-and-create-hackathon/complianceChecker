@@ -93,6 +93,7 @@ All settings are environment variables; the defaults work without any setup.
 | `HISTORY_DB_USER`     | `sa`                         | Database user                                                   |
 | `HISTORY_DB_PASSWORD` | *(empty)*                    | Database password                                               |
 | `PORT`                | `8080`                       | HTTP port                                                       |
+| `CORS_ALLOWED_ORIGINS`| `chrome-extension://*`       | Origins allowed to call `/api/**` cross-origin (browser extension); comma-separated patterns |
 
 To switch the history to PostgreSQL later, set `HISTORY_DB_URL` (e.g. `jdbc:postgresql://host:5432/compliance`),
 user and password; the driver is already included.

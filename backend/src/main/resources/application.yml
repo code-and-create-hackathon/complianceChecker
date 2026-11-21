@@ -20,6 +20,10 @@ llm:
   model-id: "${LLM_MODEL_ID:eu.amazon.nova-2-lite-v1:0}"
   aws-region: "${AWS_REGION:eu-north-1}"
 
+cors:
+  # Origins allowed to call /api/** from another origin, e.g. the browser extension. Comma-separated patterns.
+  allowed-origin-patterns: "${CORS_ALLOWED_ORIGINS:chrome-extension://*}"
+
 server:
   port: ${PORT:8080}
   error:
