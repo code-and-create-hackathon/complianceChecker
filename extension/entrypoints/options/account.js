@@ -35,6 +35,7 @@ function render(session, message = '') {
   $('login-form').hidden = Boolean(session);
   $('logged-in').hidden = !session;
   showError(message);
+  $('admin-hint').hidden = session?.role !== 'admin';
   if (session) {
     $('account-name').textContent = session.username;
     showPolicy(session.token);
@@ -79,6 +80,7 @@ async function logout() {
 
 export async function initAccount() {
   $('account-section').hidden = false;
+  $('admin-link').href = `${BACKEND_ORIGIN}/`;
   $('login-form').addEventListener('submit', login);
   $('logout').addEventListener('click', logout);
   render(await getSession());
