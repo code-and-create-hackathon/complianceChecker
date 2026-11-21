@@ -205,3 +205,29 @@ backend/src/main/java/com/compliancechecker/
 ├── model/       request/response records
 └── config/      Bedrock client (only created with LLM_PROVIDER=bedrock)
 ```
+
+## Chrome extension (Stage 2, in progress)
+
+Lives in [`extension/`](extension/), built with [WXT](https://wxt.dev) (Manifest V3). It reuses the website's
+contract code from `frontend/js/shared/` via the `@shared` alias, so that folder must stay free of `window`/DOM access.
+
+```bash
+cd extension
+npm install
+npm run dev     # opens Chrome with the extension loaded and hot reload
+npm run build   # → extension/.output/chrome-mv3
+```
+
+To load a build manually: `chrome://extensions` → Developer mode → *Load unpacked* → `extension/.output/chrome-mv3`.
+
+On `chatgpt.com` the extension holds back every send (Enter or the send button), checks the prompt against the
+uploaded rules and only sends it if it is compliant. Blocked prompts show the problems and, if available, a
+suggested version. If the check cannot run, nothing is sent.
+
+**Backend:** the endpoint is defined once for website and extension in `frontend/js/shared/config.js`.
+`BACKEND_ORIGIN` stays `""` for the website (served by the backend). The extension needs an absolute origin: while it
+is empty the extension runs in demo mode (local mock check, nothing leaves the browser); to use the local backend,
+set it to `http://localhost:8080` and rebuild. The backend already allows the extension via `CORS_ALLOWED_ORIGINS`.
+
+**Try it:** click the toolbar icon → upload a rules file (e.g. `Testdata/compliance-guide-musterfinanz.md`) → on
+chatgpt.com send `Pay DE89 3704 0044 0532 0130 00` (blocked, suggests `[IBAN_1]`) and `Hello` (sent normally).

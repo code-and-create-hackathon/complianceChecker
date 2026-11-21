@@ -1,0 +1,94 @@
+/* Styles of the check dialog (inside its shadow root). Colours match the options page. */
+:host {
+  all: initial;
+  --bg: #ffffff;
+  --fg: #1d2330;
+  --muted: #5d6677;
+  --border: #d5dae3;
+  --accent: #2456d6;
+  --accent-fg: #ffffff;
+  --surface: #f5f7fa;
+  --critical: #b42318;
+  --high: #c4320a;
+  --medium: #b54708;
+  --low: #2456d6;
+}
+@media (prefers-color-scheme: dark) {
+  :host {
+    --bg: #1b1f27;
+    --fg: #e6e9ef;
+    --muted: #9aa3b2;
+    --border: #343a46;
+    --accent: #7ea2ff;
+    --accent-fg: #0d1220;
+    --surface: #232833;
+    --critical: #ff8a7a;
+    --high: #ff9c66;
+    --medium: #fdb022;
+    --low: #7ea2ff;
+  }
+}
+
+.backdrop {
+  position: fixed; inset: 0; z-index: 2147483647;
+  display: flex; align-items: center; justify-content: center; padding: 16px;
+  background: rgb(0 0 0 / 0.45);
+  font: 14px/1.5 system-ui, sans-serif; color: var(--fg);
+}
+.panel {
+  box-sizing: border-box; width: min(560px, 100%); max-height: calc(100vh - 32px); overflow: auto;
+  padding: 20px; border-radius: 12px; background: var(--bg);
+  border-top: 4px solid var(--accent);
+  box-shadow: 0 12px 40px rgb(0 0 0 / 0.3);
+  outline: none;
+}
+.tone-blocked { border-top-color: var(--critical); }
+.tone-error { border-top-color: var(--medium); }
+
+.header { display: flex; align-items: center; gap: 10px; }
+.title { margin: 0; font-size: 17px; font-weight: 650; }
+.text { margin: 8px 0 0; color: var(--muted); }
+
+.spinner {
+  width: 16px; height: 16px; flex: none; border-radius: 50%;
+  border: 2px solid var(--border); border-top-color: var(--accent);
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 2.4s; } }
+
+.problems { list-style: none; margin: 14px 0 0; padding: 0; display: grid; gap: 8px; }
+.problem {
+  padding: 10px 12px; border-radius: 8px; background: var(--surface);
+  border-left: 3px solid var(--sev);
+}
+.severity-critical { --sev: var(--critical); }
+.severity-high { --sev: var(--high); }
+.severity-medium { --sev: var(--medium); }
+.severity-low { --sev: var(--low); }
+.problem-head { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+.badge { font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--sev); }
+.rule { color: var(--muted); }
+.problem-message { margin-top: 2px; }
+.problem-location {
+  display: block; margin-top: 4px; color: var(--muted); font-family: ui-monospace, monospace; font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.label { margin: 16px 0 4px; font-size: 12px; font-weight: 600; color: var(--muted); }
+.improved {
+  margin: 0; padding: 10px 12px; max-height: 200px; overflow: auto; border-radius: 8px;
+  background: var(--surface); border: 1px solid var(--border);
+  font: 13px/1.5 ui-monospace, monospace; white-space: pre-wrap; overflow-wrap: anywhere;
+}
+
+.actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-top: 18px; }
+.button {
+  padding: 8px 14px; border-radius: 8px; cursor: pointer;
+  font: inherit; font-weight: 600; color: var(--fg);
+  background: transparent; border: 1px solid var(--border);
+}
+.button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); }
+.button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.footer { margin: 14px 0 0; font-size: 12px; color: var(--muted); }

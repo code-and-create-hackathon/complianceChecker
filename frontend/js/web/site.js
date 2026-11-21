@@ -1,9 +1,10 @@
 // Website entry point (Stage 1): wires up the modules and runs the check.
-import { requestLlm, isMockMode } from "../shared/request_llm.js";
+import { requestLlm } from "../shared/request_llm.js";
+import { isMockMode } from "./mock_mode.js";
 import { concatComplianceFiles } from "../shared/compliance_files.js";
-import { $ } from "./dom.js";
-import { state, canSubmit, setBusy } from "./state.js";
-import { setState, showLoading, renderResult, renderError } from "./result_view.js";
+import { $, announce } from "./dom.js";
+import { state, canSubmit, setBusy, isCurrent } from "./state.js";
+import { setState, showLoading, renderResult, renderError, resetResult } from "./result_view.js";
 import { initUpload, setComplianceError, focusUpload } from "./upload.js";
 import { initPromptField, getPrompt, validatePrompt, focusPrompt } from "./prompt_field.js";
 import { initPromptHighlight } from "./prompt_highlight.js";
@@ -22,16 +23,31 @@ async function check(event) {
   if (!hasRules) return focusUpload();
   if (!hasPrompt) return focusPrompt();
 
-  const prompt = getPrompt();
+  /** @type {import("./state.js").CheckRequest} */
+  const request = { prompt: getPrompt(), files: state.complianceFiles };
   setBusy(true);
   showLoading();
+  let response;
+  let failure;
   try {
-    renderResult(await requestLlm(prompt, concatComplianceFiles(state.complianceFiles)), prompt);
+    response = await requestLlm(request.prompt, concatComplianceFiles(request.files), { mock: isMockMode() });
   } catch (error) {
-    renderError(error);
-  } finally {
-    setBusy(false);
+    failure = error;
   }
+  setBusy(false);
+
+  // Prompt or rules changed while the check ran: the answer belongs to something else, drop it.
+  if (!isCurrent(request, getPrompt())) {
+    resetResult();
+    announce("The prompt or the rules changed during the check. Please check again.");
+    return;
+  }
+  if (failure) {
+    renderError(failure);
+    return;
+  }
+  state.result = { request, response };
+  renderResult();
 }
 
 function init() {

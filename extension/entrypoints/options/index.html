@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Compliance Checker – Rules</title>
+    <meta name="manifest.open_in_tab" content="true" />
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <main>
+      <h1>Compliance rules</h1>
+      <p class="hint">
+        Prompts on supported AI chats are checked against these rules before they are sent.
+        The rules are stored only in this browser.
+      </p>
+
+      <label class="dropzone" id="dropzone">
+        <input type="file" id="file-input" accept=".md,.markdown,.txt" multiple hidden />
+        <strong>Choose files</strong> or drop them here
+        <span class="hint">One or more .md or .txt files, max. 500,000 characters in total</span>
+      </label>
+
+      <p class="message" id="message" role="status" hidden></p>
+
+      <section id="summary" hidden>
+        <div class="summary-row">
+          <span id="status"></span>
+          <button type="button" class="link-button" id="clear">Remove all</button>
+        </div>
+        <ul class="file-list" id="file-list"></ul>
+      </section>
+
+      <p class="warning" id="empty" hidden>
+        No rules loaded: prompts cannot be checked until you add at least one file.
+      </p>
+    </main>
+    <script type="module" src="./main.js"></script>
+  </body>
+</html>

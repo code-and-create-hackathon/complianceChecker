@@ -1,7 +1,8 @@
 // Result panel: states (empty, loading, status, error), counts, findings list and the hidden messages.
-import { isMockMode } from "../shared/request_llm.js";
+import { isMockMode } from "./mock_mode.js";
 import { isBlocking } from "../shared/validate.js";
-import { $, announce, plural } from "./dom.js";
+import { $, announce } from "./dom.js";
+import { plural } from "../shared/format.js";
 import { state } from "./state.js";
 import { showHighlights, clearHighlights } from "./prompt_highlight.js";
 import { changedSegments } from "./diff.js";
@@ -139,24 +140,24 @@ function markChanges(prompt) {
   );
 }
 
-/** The improved prompt from the last result ("" if none). */
+/** The improved prompt from the result on screen ("" if none). */
 export function getSuggestion() {
-  return messageImproved.textContent;
+  return state.result?.response.improvedVersion.trim() ?? "";
 }
 
-/** Discards the last result as soon as the rules or the prompt change. */
+/** Discards the last result as soon as the rules or the prompt change (site.js handles running checks). */
 export function resetResult() {
   if (state.busy) return;
+  state.result = null;
   fillMessages(null);
   clearHighlights();
   setState("empty");
 }
 
-/**
- * @param {import("../shared/validate.js").CheckResponse} data
- * @param {string} prompt  the prompt that was checked (the problems' locations are searched in it)
- */
-export function renderResult(data, prompt) {
+/** Shows `state.result`, which site.js sets before calling this. */
+export function renderResult() {
+  const { response: data, request } = state.result;
+  const { prompt } = request; // the problems' locations are searched in the checked prompt
   const problems = fillMessages(data);
   showHighlights(prompt, problems);
   markChanges(prompt);

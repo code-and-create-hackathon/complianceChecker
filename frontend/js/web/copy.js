@@ -1,6 +1,7 @@
 // Copy buttons in the result panel: data-copy="prompt" copies the prompt,
 // data-copy="suggestion" the sanitised version.
 import { $, announce } from "./dom.js";
+import { state } from "./state.js";
 import { getSuggestion } from "./result_view.js";
 
 const COPY_FEEDBACK_MS = 1600;
@@ -31,7 +32,9 @@ export function initCopy() {
     const label = button.querySelector(".button-label");
     label.dataset.original ??= label.textContent;
 
-    const text = button.dataset.copy === "suggestion" ? getSuggestion() : $("prompt").value;
+    // The prompt copy is the checked prompt, not whatever the field contains now.
+    const text =
+      button.dataset.copy === "suggestion" ? getSuggestion() : (state.result?.request.prompt ?? $("prompt").value);
     const ok = await copyText(text);
     label.textContent = ok ? "Copied" : "Copy failed";
     announce(label.textContent);
