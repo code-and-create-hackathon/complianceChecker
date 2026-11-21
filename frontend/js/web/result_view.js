@@ -1,8 +1,10 @@
 // Result panel: verdict (empty, loading, status, error), findings list, sanitise & send,
 // plus the hidden developer messages.
 import { isMockMode } from "../shared/request_llm.js";
+import { isBlocking, NOTICE_SEVERITY } from "../shared/validate.js";
 import { $, announce, plural } from "./dom.js";
 import { state } from "./state.js";
+import { locateProblems } from "./locate.js";
 import { showReader, showEditor, isReading, setActiveMark } from "./reader.js";
 
 const result = $("result");
@@ -37,7 +39,9 @@ const messageRaw = $("message-raw");
 
 const PLACEHOLDER = /^\[[^\]\s]+\]$/;
 
-/** Prompt and findings of the last result, for the read view. */
+const SEVERITY_LABELS = { critical: "Critical", high: "High", medium: "Medium", low: "Low" };
+
+/** Prompt and located problems of the last result, for the read view. */
 let last = { prompt: "", findings: [] };
 
 /** @param {"empty" | "loading" | "status" | "error"} name */
@@ -72,12 +76,12 @@ function renderSuggestion(text) {
 
 /** Div 2: store the messages from the API response. Always stays hidden. */
 function fillMessages(data) {
-  const problems = Array.isArray(data?.problems) ? data.problems.filter(Boolean) : [];
+  const problems = Array.isArray(data?.problems) ? data.problems : [];
   messages.dataset.isSafe = data ? String(Boolean(data.isSafe)) : "";
   messageProblems.replaceChildren(
-    ...problems.map((problem) => {
+    ...problems.map((p) => {
       const li = document.createElement("li");
-      li.textContent = problem;
+      li.textContent = [p.ruleId, p.severity, p.message, p.location && `"${p.location}"`].filter(Boolean).join(" · ");
       return li;
     }),
   );
@@ -93,34 +97,35 @@ function element(tag, className, text) {
   return el;
 }
 
-/** One list entry per finding; without findings (older backend) one per problem. */
-function renderFindings(findings, problems) {
-  const items = findings.length
-    ? findings.map((f) => {
-        const severity = f.severity === "warn" ? "is-warn" : "is-crit";
-        const button = element("button", `finding ${severity}`);
-        button.type = "button";
-        button.dataset.id = String(f.id);
-        button.setAttribute("aria-pressed", "false");
+/**
+ * One list entry per problem, numbered like the marks in the prompt.
+ * Problems that are marked in the prompt are buttons (select → outline the mark); the others are plain.
+ * @param {import("./locate.js").LocatedProblem[]} findings
+ */
+function renderFindings(findings) {
+  const items = findings.map((f) => {
+    const severity = f.severity === NOTICE_SEVERITY ? "is-warn" : "is-crit";
+    const marked = f.start !== null;
+    const item = element(marked ? "button" : "div", `finding ${severity}`);
+    if (marked) {
+      item.type = "button";
+      item.dataset.id = String(f.id);
+      item.setAttribute("aria-pressed", "false");
+    }
 
-        const head = element("span", "finding-head");
-        head.append(
-          element("span", "finding-rule", f.ruleId),
-          element("span", "", f.category),
-          element("span", `sev ${severity}`, f.severity === "warn" ? "Notice" : "Violation"),
-        );
-        const body = element("span", "finding-body");
-        body.append(head, element("span", "finding-match", `“${f.match}”`), element("span", "finding-msg", f.message));
-        button.append(element("span", "finding-num", String(f.id)), body);
-        return button;
-      })
-    : problems.map((problem, i) => {
-        const item = element("div", "finding is-crit");
-        const body = element("span", "finding-body");
-        body.append(element("span", "finding-msg", problem));
-        item.append(element("span", "finding-num", String(i + 1)), body);
-        return item;
-      });
+    const head = element("span", "finding-head");
+    head.append(
+      element("span", "finding-rule", f.ruleId),
+      element("span", `sev ${severity}`, SEVERITY_LABELS[f.severity] ?? f.severity),
+    );
+    const body = element("span", "finding-body");
+    body.append(head);
+    if (f.location) body.append(element("span", "finding-match", `“${f.location}”`));
+    if (f.location && !marked) body.append(element("span", "finding-msg", "Passage not found in the prompt."));
+    body.append(element("span", "finding-msg", f.message));
+    item.append(element("span", "finding-num", String(f.id)), body);
+    return item;
+  });
 
   findingList.replaceChildren(
     ...items.map((item) => {
@@ -150,21 +155,26 @@ function showStatus(isSafe, counts, hasSuggestion, marked) {
   statusBox.classList.toggle("is-safe", isSafe);
   statusBox.classList.toggle("is-risk", !isSafe);
 
+  const parts = [];
+  if (counts.crit) parts.push(plural(counts.crit, "violation", "violations"));
+  if (counts.warn) parts.push(plural(counts.warn, "notice", "notices"));
+
   if (isSafe) {
     statusTitle.textContent = "Approved";
-    statusText.textContent = "No violations of the active rule set found.";
-    subtitle.textContent = "The prompt complies with the active rule set.";
+    statusText.textContent = counts.warn
+      ? `No violations of the active rule set, ${parts.join("")} found.`
+      : "No violations of the active rule set found.";
+    subtitle.textContent = marked
+      ? "Marked passages are notices only. The prompt may be sent."
+      : "The prompt complies with the active rule set.";
   } else {
-    const parts = [];
-    if (counts.crit) parts.push(plural(counts.crit, "violation", "violations"));
-    if (counts.warn) parts.push(plural(counts.warn, "notice", "notices"));
     statusTitle.textContent = "Not approved";
     statusText.textContent = parts.length ? `${parts.join(" and ")} found.` : "Risk detected.";
     subtitle.textContent = marked
       ? "Marked passages violate the active rule set."
       : "The prompt violates the active rule set.";
   }
-  stats.hidden = isSafe;
+  stats.hidden = counts.crit + counts.warn === 0;
   statCrit.textContent = String(counts.crit);
   statWarn.textContent = String(counts.warn);
   checkState.textContent = isSafe ? "Checked: approved" : "Checked: not approved";
@@ -201,18 +211,17 @@ export function resetResult() {
 
 /**
  * @param {import("../shared/validate.js").CheckResponse} data
- * @param {string} prompt  the prompt that was checked (positions in data.findings refer to it)
+ * @param {string} prompt  the prompt that was checked (the problems' locations are searched in it)
  */
 export function renderResult(data, prompt) {
   const problems = fillMessages(data);
-  const findings = Array.isArray(data.findings) ? data.findings : [];
-  const counts = findings.length
-    ? { crit: findings.filter((f) => f.severity !== "warn").length, warn: findings.filter((f) => f.severity === "warn").length }
-    : { crit: problems.length, warn: 0 };
+  const findings = locateProblems(prompt, problems);
+  const blocking = problems.filter(isBlocking).length;
+  const counts = { crit: blocking, warn: problems.length - blocking };
 
   last = { prompt, findings };
-  renderFindings(findings, problems);
-  const marked = !data.isSafe && showReader(prompt, findings);
+  renderFindings(findings);
+  const marked = showReader(prompt, findings);
   showStatus(Boolean(data.isSafe), counts, Boolean(getSuggestion()), marked);
   document.dispatchEvent(new CustomEvent("compliance:result", { detail: data }));
 }

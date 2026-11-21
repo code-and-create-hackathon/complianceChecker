@@ -1,14 +1,15 @@
 // Read view of the editor: after a check the prompt is shown with its findings marked.
 // A click into the text (or Enter) switches back to editing; the marks disappear until the next check.
+import { NOTICE_SEVERITY } from "../shared/validate.js";
 import { $ } from "./dom.js";
 
 const textarea = $("prompt");
 const reader = $("reader");
 
-/** The prompt as it was checked (the positions of the findings refer to it). */
+/** The prompt as it was checked (the positions from locate.js refer to it). */
 let checkedText = "";
 
-/** Findings with usable positions: inside the text, sorted, not overlapping. */
+/** Located problems with usable positions: inside the text, sorted, not overlapping. */
 function usableFindings(text, findings) {
   const sorted = findings
     .filter((f) => Number.isInteger(f.start) && Number.isInteger(f.end) && f.start >= 0 && f.end <= text.length && f.start < f.end)
@@ -28,7 +29,7 @@ function render(findings) {
   let pos = 0;
   for (const f of findings) {
     if (f.start > pos) nodes.push(document.createTextNode(checkedText.slice(pos, f.start)));
-    const severity = f.severity === "warn" ? "is-warn" : "is-crit";
+    const severity = f.severity === NOTICE_SEVERITY ? "is-warn" : "is-crit";
 
     const mark = document.createElement("mark");
     mark.className = severity;
@@ -48,7 +49,9 @@ function render(findings) {
 }
 
 /**
- * Shows the read view with the findings marked.
+ * Shows the read view with the located problems marked.
+ * @param {string} text
+ * @param {import("./locate.js").LocatedProblem[]} findings
  * @returns {boolean} false (and the editor stays) if there is nothing to mark
  */
 export function showReader(text, findings) {

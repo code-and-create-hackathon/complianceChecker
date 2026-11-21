@@ -4,16 +4,18 @@
 export const PROMPT_MAX_LENGTH = 20_000;
 export const COMPLIANCE_MAX_LENGTH = 500_000;
 
-const SEVERITIES = ["crit", "warn"];
-const FINDING_FIELDS = ["id", "ruleId", "category", "severity", "message", "match", "start", "end", "replacement"];
-const FINDING_TEXT_FIELDS = ["ruleId", "category", "message", "match", "replacement"];
+/** Severities as in the compliance file; only "low" (a notice) still allows sending. */
+export const SEVERITIES = ["critical", "high", "medium", "low"];
+export const NOTICE_SEVERITY = "low";
+
+const PROBLEM_FIELDS = ["ruleId", "severity", "message", "location"];
 
 /** @typedef {{prompt: string, compliance: string}} CheckRequest */
 /**
- * @typedef {{id: number, ruleId: string, category: string, severity: "crit" | "warn", message: string,
- *            match: string, start: number, end: number, replacement: string}} Finding
+ * @typedef {{ruleId: string, severity: "critical" | "high" | "medium" | "low",
+ *            message: string, location: string}} Problem
  */
-/** @typedef {{isSafe: boolean, problems: string[], improvedVersion: string, findings?: Finding[]}} CheckResponse */
+/** @typedef {{isSafe: boolean, problems: Problem[], improvedVersion: string}} CheckResponse */
 
 /** Thrown when a payload breaks the API contract. `errors` lists every violation. */
 export class ValidationError extends Error {
@@ -48,29 +50,28 @@ function checkText(obj, field, maxLength, errors) {
   else if (charLength(value) > maxLength) errors.push(`"${field}" must be at most ${maxLength} characters long.`);
 }
 
-/** Optional "findings": one entry per match, with its position in the prompt. */
-function checkFindings(findings, isSafe, errors) {
-  if (!Array.isArray(findings)) {
-    errors.push(`"findings" must be an array.`);
+/** A problem blocks the prompt unless it is only a notice. */
+export function isBlocking(problem) {
+  return problem.severity !== NOTICE_SEVERITY;
+}
+
+/** Each problem: {ruleId, severity, message, location}; location may be "" (no specific passage). */
+function checkProblem(problem, i, errors) {
+  const at = `problems[${i}]`;
+  if (!isPlainObject(problem)) {
+    errors.push(`"${at}" must be an object with ${PROBLEM_FIELDS.join(", ")}.`);
     return;
   }
-  findings.forEach((f, i) => {
-    const at = `findings[${i}]`;
-    if (!isPlainObject(f)) {
-      errors.push(`"${at}" must be an object.`);
-      return;
+  checkOnlyFields(problem, PROBLEM_FIELDS, errors, `${at}.`);
+  for (const field of ["ruleId", "message"]) {
+    if (typeof problem[field] !== "string" || problem[field].trim() === "") {
+      errors.push(`"${at}.${field}" must be a non-empty string.`);
     }
-    checkOnlyFields(f, FINDING_FIELDS, errors, `${at}.`);
-    if (!Number.isInteger(f.id) || f.id < 1) errors.push(`"${at}.id" must be a positive integer.`);
-    if (!SEVERITIES.includes(f.severity)) errors.push(`"${at}.severity" must be "crit" or "warn".`);
-    FINDING_TEXT_FIELDS.forEach((key) => {
-      if (typeof f[key] !== "string") errors.push(`"${at}.${key}" must be a string.`);
-    });
-    if (!Number.isInteger(f.start) || !Number.isInteger(f.end) || f.start < 0 || f.end <= f.start) {
-      errors.push(`"${at}.start" and "${at}.end" must be integers with 0 ≤ start < end.`);
-    }
-  });
-  if (isSafe === true && findings.length) errors.push(`"findings" must be empty when "isSafe" is true.`);
+  }
+  if (!SEVERITIES.includes(problem.severity)) {
+    errors.push(`"${at}.severity" must be one of ${SEVERITIES.map((s) => `"${s}"`).join(", ")}.`);
+  }
+  if (typeof problem.location !== "string") errors.push(`"${at}.location" must be a string ("" if none).`);
 }
 
 /**
@@ -101,25 +102,23 @@ export function validateResponse(payload) {
   if (!isPlainObject(payload)) throw new ValidationError("response", ["The response must be a JSON object."]);
 
   const errors = [];
-  checkOnlyFields(payload, ["isSafe", "problems", "improvedVersion", "findings"], errors);
+  checkOnlyFields(payload, ["isSafe", "problems", "improvedVersion"], errors);
 
   if (typeof payload.isSafe !== "boolean") errors.push(`"isSafe" must be a boolean.`);
 
   const { problems } = payload;
   if (!Array.isArray(problems)) {
-    errors.push(`"problems" must be an array of strings.`);
+    errors.push(`"problems" must be an array of objects.`);
   } else {
-    problems.forEach((p, i) => {
-      if (typeof p !== "string" || p.trim() === "") errors.push(`"problems[${i}]" must be a non-empty string.`);
-    });
-    if (typeof payload.isSafe === "boolean" && payload.isSafe !== (problems.length === 0)) {
-      errors.push(`"isSafe" must be true exactly when "problems" is empty.`);
+    const countBefore = errors.length;
+    problems.forEach((problem, i) => checkProblem(problem, i, errors));
+    const problemsValid = errors.length === countBefore;
+    if (problemsValid && typeof payload.isSafe === "boolean" && payload.isSafe !== !problems.some(isBlocking)) {
+      errors.push(`"isSafe" must be true exactly when no problem has severity "critical", "high" or "medium".`);
     }
   }
 
   if (typeof payload.improvedVersion !== "string") errors.push(`"improvedVersion" must be a string ("" if none).`);
-
-  if ("findings" in payload) checkFindings(payload.findings, payload.isSafe, errors);
 
   if (errors.length) throw new ValidationError("response", errors);
   return /** @type {CheckResponse} */ (payload);
