@@ -1,4 +1,4 @@
-// "Apply sanitised version": puts the improved version from the result into the prompt field.
+// "Apply suggestion": puts the improved version from the result into the prompt field.
 import { $, announce } from "./dom.js";
 import { getSuggestion } from "./result_view.js";
 import { setPrompt } from "./prompt_field.js";
@@ -8,6 +8,6 @@ export function initSuggestion() {
     const suggestion = getSuggestion();
     if (!suggestion) return;
     setPrompt(suggestion);
-    announce("Sanitised version applied. Please check again.");
+    announce("Suggestion applied. Please check again.");
   });
 }

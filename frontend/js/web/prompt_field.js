@@ -1,4 +1,4 @@
-// Prompt field: character count, Ctrl/⌘ + Enter, "Clear", error message.
+// Prompt field: character count, Ctrl/⌘ + Enter, error message.
 import { $, numberFormat, setFieldError } from "./dom.js";
 import { resetResult } from "./result_view.js";
 
@@ -51,8 +51,6 @@ export function initPromptField(form) {
       form.requestSubmit();
     }
   });
-
-  $("clear-button").addEventListener("click", () => setPrompt(""));
 
   updateCharCount();
 }

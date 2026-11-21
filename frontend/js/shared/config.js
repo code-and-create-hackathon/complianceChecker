@@ -6,9 +6,3 @@ export const API_URL = "/api/check";
 
 // The check gives up after this time, so the page never hangs on "Checking …".
 export const REQUEST_TIMEOUT_MS = 60_000;
-
-// Target chat for "Send". Stage 1 has no direct integration: the text is copied and the chat opened.
-export const SEND_TARGET = {
-  name: "Microsoft Copilot",
-  url: "https://copilot.microsoft.com/",
-};

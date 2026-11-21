@@ -1,5 +1,4 @@
-// Compliance rules upload: rule-set button and menu in the header, drag & drop anywhere on the page,
-// file list, file checks.
+// Compliance rules upload: dropzone, file chips, file checks.
 import { readComplianceFiles, concatComplianceFiles } from "../shared/compliance_files.js";
 import { COMPLIANCE_MAX_LENGTH, charLength } from "../shared/validate.js";
 import { $, LOCALE, numberFormat, plural, setFieldError } from "./dom.js";
@@ -9,21 +8,13 @@ import { resetResult } from "./result_view.js";
 const ACCEPTED_FILE = /\.(md|markdown|txt)$/i;
 
 const fileInput = $("compliance");
-const rulesetButton = $("ruleset-button");
-const rulesetName = $("ruleset-name");
-const rulesetMeta = $("ruleset-meta");
-const menu = $("ruleset-menu");
-const uploadItem = $("ruleset-upload");
+const dropzone = $("dropzone");
 const fileSummary = $("compliance-summary");
 const fileStatus = $("compliance-status");
 const fileList = $("compliance-files");
 const fileClear = $("compliance-clear");
 const chipTemplate = $("file-chip-template");
 const complianceError = $("compliance-error");
-const rulesetNote = $("note-ruleset");
-const dropOverlay = $("drop-overlay");
-
-const timeFormat = new Intl.DateTimeFormat(LOCALE, { hour: "2-digit", minute: "2-digit" });
 
 const TOO_LONG = `rules exceed ${numberFormat.format(COMPLIANCE_MAX_LENGTH)} characters in total`;
 
@@ -37,10 +28,10 @@ let loadGeneration = 0;
 
 export function setComplianceError(message) {
   setFieldError(fileInput, complianceError, message);
-  rulesetButton.classList.toggle("is-invalid", Boolean(message));
+  dropzone.classList.toggle("is-invalid", Boolean(message));
 }
 
-/** Notice below the editor without marking the rules invalid (files are still loaded). */
+/** Notice below the upload without marking the field invalid (files are still loaded). */
 function setComplianceNotice(message) {
   setComplianceError("");
   complianceError.textContent = message;
@@ -48,27 +39,7 @@ function setComplianceNotice(message) {
 }
 
 export function focusUpload() {
-  rulesetButton.focus();
-}
-
-// ---------- Menu ----------
-
-function openMenu() {
-  menu.hidden = false;
-  rulesetButton.setAttribute("aria-expanded", "true");
-  uploadItem.focus();
-}
-
-function closeMenu({ focusButton = false } = {}) {
-  if (menu.hidden) return;
-  menu.hidden = true;
-  rulesetButton.setAttribute("aria-expanded", "false");
-  if (focusButton) rulesetButton.focus();
-}
-
-function pickFiles() {
-  closeMenu();
-  fileInput.click();
+  fileInput.focus();
 }
 
 // ---------- Rendering ----------
@@ -89,26 +60,6 @@ function ruleSummary(text) {
   return rules > 0 ? plural(rules, "rule", "rules") : "rule set loaded";
 }
 
-/** Header button: "Upload rule set" or the active rule set with rule count and load time. */
-function renderButton() {
-  const files = state.complianceFiles;
-  const empty = files.length === 0;
-  rulesetButton.classList.toggle("is-empty", empty);
-  rulesetMeta.hidden = empty;
-
-  if (empty) {
-    rulesetName.textContent = "Upload rule set";
-    rulesetNote.textContent = "No rule set loaded.";
-    return;
-  }
-
-  const rules = files.reduce((sum, file) => sum + countRules(file.text), 0);
-  const time = timeFormat.format(state.rulesLoadedAt);
-  rulesetName.textContent = files.length === 1 ? files[0].name.replace(/\.[^.]+$/, "") : plural(files.length, "rule file", "rule files");
-  rulesetMeta.textContent = rules > 0 ? `${plural(rules, "rule", "rules")}, loaded at ${time}` : `loaded at ${time}`;
-  rulesetNote.textContent = `Active rule set: ${files.map((f) => f.name).join(", ")} · loaded at ${time}.`;
-}
-
 function renderFiles() {
   const files = state.complianceFiles;
   fileList.replaceChildren(
@@ -122,15 +73,14 @@ function renderFiles() {
       return chip;
     }),
   );
-  fileStatus.textContent = `${plural(files.length, "file", "files")} loaded`;
+  fileStatus.textContent =
+    `${plural(files.length, "file", "files")} loaded`;
   fileSummary.hidden = files.length === 0;
-  renderButton();
 }
 
 /** After every change to the rules: re-render and discard the old result. */
 function setFiles(files) {
   state.complianceFiles = files;
-  state.rulesLoadedAt = files.length ? new Date() : null;
   renderFiles();
   resetResult();
 }
@@ -191,39 +141,12 @@ async function loadFiles(fileListLike) {
     // Fail loudly: never keep using half-loaded or outdated rules, also not from other pending batches.
     loadGeneration += 1;
     setFiles([]);
-    setComplianceError(`File could not be read (${error.message || error}). Please upload all rules again.`);
+    setComplianceError(
+      `File could not be read (${error.message || error}). Please upload all rules again.`,
+    );
   } finally {
     endFileRead();
   }
-}
-
-// ---------- Drag & drop anywhere on the page ----------
-
-function initDragAndDrop() {
-  let depth = 0;
-  const hasFiles = (event) => [...(event.dataTransfer?.types || [])].includes("Files");
-
-  window.addEventListener("dragenter", (event) => {
-    if (!hasFiles(event)) return;
-    depth += 1;
-    dropOverlay.hidden = false;
-  });
-
-  window.addEventListener("dragleave", (event) => {
-    if (!hasFiles(event)) return;
-    depth = Math.max(0, depth - 1);
-    if (depth === 0) dropOverlay.hidden = true;
-  });
-
-  // Without preventDefault the browser would open the dropped file.
-  window.addEventListener("dragover", (event) => event.preventDefault());
-
-  window.addEventListener("drop", (event) => {
-    event.preventDefault();
-    depth = 0;
-    dropOverlay.hidden = true;
-    if (hasFiles(event)) loadFiles(event.dataTransfer.files);
-  });
 }
 
 // ---------- Events ----------
@@ -231,21 +154,28 @@ function initDragAndDrop() {
 export function initUpload() {
   fileInput.addEventListener("change", () => loadFiles(fileInput.files));
 
-  // No rules yet: the button opens the file dialog directly; otherwise the menu.
-  rulesetButton.addEventListener("click", () => {
-    if (!state.complianceFiles.length) pickFiles();
-    else if (menu.hidden) openMenu();
-    else closeMenu();
+  dropzone.addEventListener("click", (event) => {
+    if (event.target !== fileInput) fileInput.click();
   });
 
-  uploadItem.addEventListener("click", pickFiles);
-
-  document.addEventListener("click", (event) => {
-    if (!event.target.closest(".ruleset")) closeMenu();
+  dropzone.addEventListener("dragover", (event) => {
+    event.preventDefault();
+    dropzone.classList.add("is-dragover");
   });
 
-  document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape") closeMenu({ focusButton: true });
+  dropzone.addEventListener("dragleave", (event) => {
+    if (!dropzone.contains(event.relatedTarget)) dropzone.classList.remove("is-dragover");
+  });
+
+  dropzone.addEventListener("drop", (event) => {
+    event.preventDefault();
+    dropzone.classList.remove("is-dragover");
+    loadFiles(event.dataTransfer.files);
+  });
+
+  // Stops the browser from opening a file dropped outside the dropzone.
+  ["dragover", "drop"].forEach((type) => {
+    window.addEventListener(type, (event) => event.preventDefault());
   });
 
   fileList.addEventListener("click", (event) => {
@@ -254,17 +184,15 @@ export function initUpload() {
     const index = Number(button.dataset.index);
     setComplianceError("");
     setFiles(state.complianceFiles.filter((_, i) => i !== index));
-    if (state.complianceFiles.length) uploadItem.focus();
-    else closeMenu({ focusButton: true });
+    fileInput.focus();
   });
 
   fileClear.addEventListener("click", () => {
     loadGeneration += 1; // files still loading must not reappear after "Remove all"
     setComplianceError("");
     setFiles([]);
-    closeMenu({ focusButton: true });
+    fileInput.focus();
   });
 
-  initDragAndDrop();
   renderFiles();
 }
