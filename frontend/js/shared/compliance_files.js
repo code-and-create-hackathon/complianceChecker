@@ -1,5 +1,7 @@
 // Reads the uploaded compliance files and concatenates them.
-// Nothing is persisted: the user uploads the rules again on every visit.
+// No DOM access besides File objects: used by the website and the extension's options page.
+// Website: nothing is persisted. Extension: rules are stored in chrome.storage.local.
+import { COMPLIANCE_MAX_LENGTH, charLength } from "./validate.js";
 
 /** @typedef {{name: string, text: string}} ComplianceFile */
 
@@ -25,4 +27,23 @@ export async function readComplianceFiles(fileList) {
  */
 export function concatComplianceFiles(files) {
   return files.map((f) => `<!-- file: ${f.name} -->\n${f.text.trim()}`).join("\n\n---\n\n");
+}
+
+/**
+ * Adds files to `current` in order (same name replaces the old file) as long as all rules
+ * together stay within the API limit, measured exactly like validateRequest does.
+ * @template {ComplianceFile} T
+ * @param {T[]} current
+ * @param {T[]} added
+ * @returns {{files: T[], tooLong: string[]}} the new list and the names that did not fit
+ */
+export function addWithinLimit(current, added) {
+  let files = current;
+  const tooLong = [];
+  for (const file of added) {
+    const next = [...files.filter((f) => f.name !== file.name), file];
+    if (charLength(concatComplianceFiles(next)) > COMPLIANCE_MAX_LENGTH) tooLong.push(file.name);
+    else files = next;
+  }
+  return { files, tooLong };
 }

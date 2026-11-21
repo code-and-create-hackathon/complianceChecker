@@ -1,5 +1,6 @@
 // Website entry point (Stage 1): wires up the modules and runs the check.
-import { requestLlm, isMockMode } from "../shared/request_llm.js";
+import { requestLlm } from "../shared/request_llm.js";
+import { isMockMode } from "./mock_mode.js";
 import { concatComplianceFiles } from "../shared/compliance_files.js";
 import { $ } from "./dom.js";
 import { state, canSubmit, setBusy } from "./state.js";
@@ -25,7 +26,7 @@ async function check(event) {
   setBusy(true);
   showLoading();
   try {
-    renderResult(await requestLlm(getPrompt(), concatComplianceFiles(state.complianceFiles)));
+    renderResult(await requestLlm(getPrompt(), concatComplianceFiles(state.complianceFiles), { mock: isMockMode() }));
   } catch (error) {
     renderError(error);
   } finally {

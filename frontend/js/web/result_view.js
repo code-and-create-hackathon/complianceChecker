@@ -1,5 +1,5 @@
 // Result panel: states (empty, loading, status, error), counts, findings list and the hidden messages.
-import { isMockMode } from "../shared/request_llm.js";
+import { isMockMode } from "./mock_mode.js";
 import { isBlocking } from "../shared/validate.js";
 import { $, announce, plural } from "./dom.js";
 import { state } from "./state.js";

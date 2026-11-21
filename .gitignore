@@ -8,3 +8,9 @@
 .idea/
 .vscode/
 node_modules/
+
+# Extension (WXT)
+extension/.output/
+extension/.wxt/
+extension/web-ext.config.ts
+*.log

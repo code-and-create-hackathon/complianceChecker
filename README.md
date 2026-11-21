@@ -42,3 +42,17 @@ flowchart LR
 ```
 
 The API is defined [here](API.md).
+
+## Chrome extension (Stage 2, in progress)
+
+Lives in [`extension/`](extension/), built with [WXT](https://wxt.dev) (Manifest V3). It reuses the website's
+contract code from `frontend/js/shared/` via the `@shared` alias, so that folder must stay free of `window`/DOM access.
+
+```bash
+cd extension
+npm install
+npm run dev     # opens Chrome with the extension loaded and hot reload
+npm run build   # → extension/.output/chrome-mv3
+```
+
+To load a build manually: `chrome://extensions` → Developer mode → *Load unpacked* → `extension/.output/chrome-mv3`.
