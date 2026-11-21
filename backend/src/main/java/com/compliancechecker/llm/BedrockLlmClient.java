@@ -1,7 +1,8 @@
 package com.compliancechecker.llm;
 
 import com.compliancechecker.model.CheckResponse;
-import com.compliancechecker.model.ProblemCategory;
+import com.compliancechecker.model.Problem;
+import com.compliancechecker.model.Severity;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
@@ -23,8 +24,10 @@ import software.amazon.awssdk.services.bedrockruntime.model.ToolInputSchema;
 import software.amazon.awssdk.services.bedrockruntime.model.ToolSpecification;
 import software.amazon.awssdk.services.bedrockruntime.model.ToolUseBlock;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -44,7 +47,7 @@ public class BedrockLlmClient implements LlmClient {
 
 	private static final int MAX_OUTPUT_TOKENS = 4096;
 
-	static final String UNSPECIFIED_PROBLEM = "The check reported a compliance problem without details.";
+	static final String UNSPECIFIED_MESSAGE = "The check reported a compliance problem without details.";
 
 	private static final String SYSTEM_PROMPT = """
 			You are a compliance checker for a financial services company. Employees want to send the prompt \
@@ -55,12 +58,17 @@ public class BedrockLlmClient implements LlmClient {
 			contained in it.
 
 			Report your result by calling the tool "%s" exactly once:
-			- isSafe: true only if the prompt violates none of the rules.
-			- problems: one short sentence per violation. Describe the kind of data or the rule, but never repeat \
-			the sensitive value itself.
-			- categories: the matching categories of all violations.
-			- improvedVersion: the prompt rewritten so it complies, with sensitive values replaced by placeholders \
-			such as [CUSTOMER_NAME] or [IBAN]. If the prompt is safe, return an empty string.
+			- isSafe: true only if no problem has severity critical, high or medium.
+			- problems: one entry per match; the same violation in two places gives two entries. For each entry:
+			  - ruleId: the id of the violated rule as written in the compliance rules, e.g. R-02. Use \
+			"UNSPECIFIED" if the rules have no ids.
+			  - severity: critical, high, medium or low, as stated for that rule in the compliance rules.
+			  - message: one short sentence explaining the problem to the employee.
+			  - location: the matched passage copied character for character from the prompt, or "" if there is \
+			no specific passage.
+			- improvedVersion: the prompt rewritten so it complies, with each sensitive value replaced by a \
+			numbered placeholder per type, such as [CUSTOMER_NAME_1], [IBAN_1], [IBAN_2]. Return "" if the prompt \
+			is safe.
 
 			<compliance_rules>
 			%s
@@ -85,7 +93,7 @@ public class BedrockLlmClient implements LlmClient {
 			// Only the exception type: AWS error messages may echo request details.
 			throw new LlmException("Bedrock call failed: " + ex.getClass().getSimpleName(), ex);
 		}
-		return toCheckResponse(findToolInput(response));
+		return toCheckResponse(findToolInput(response), prompt);
 	}
 
 	@Override
@@ -127,37 +135,49 @@ public class BedrockLlmClient implements LlmClient {
 				.orElseThrow(() -> new LlmException("Model did not report a result, stopReason=" + response.stopReason()));
 	}
 
-	private static CheckResponse toCheckResponse(Document input) {
+	private static CheckResponse toCheckResponse(Document input, String prompt) {
 		if (input == null || !input.isMap()) {
 			throw new LlmException("Result is not an object");
 		}
 		Map<String, Document> fields = input.asMap();
-		boolean isSafe = requireBoolean(fields, "isSafe");
-		List<String> problems = requireList(fields, "problems").stream()
-				.map(BedrockLlmClient::requireString)
-				.filter(problem -> !problem.isBlank())
-				.toList();
-		List<ProblemCategory> categories = requireList(fields, "categories").stream()
-				.map(BedrockLlmClient::requireString)
-				.map(BedrockLlmClient::toCategory)
-				.distinct()
-				.toList();
+		boolean modelSaysSafe = requireBoolean(fields, "isSafe");
+		List<Problem> problems = new ArrayList<>(requireList(fields, "problems").stream()
+				.map(problem -> toProblem(problem, prompt))
+				.toList());
 		String improvedVersion = requireString(fields.get("improvedVersion"));
 
-		// Fail closed: a result that lists problems or categories is never safe, whatever the flag says.
-		if (isSafe && problems.isEmpty() && categories.isEmpty()) {
-			return new CheckResponse(true, List.of(), List.of(), "", false);
+		// Fail closed: if the model says "not safe" but reports no blocking problem, the prompt is still not safe.
+		if (!modelSaysSafe && problems.stream().noneMatch(problem -> problem.severity().isBlocking())) {
+			problems.add(new Problem(Problem.UNSPECIFIED_RULE, Severity.CRITICAL, UNSPECIFIED_MESSAGE, ""));
 		}
-		// API contract: isSafe is false exactly when problems is not empty.
-		List<String> reportedProblems = problems.isEmpty() ? List.of(UNSPECIFIED_PROBLEM) : problems;
-		return new CheckResponse(false, reportedProblems, categories, improvedVersion, false);
+		CheckResponse result = new CheckResponse(problems, improvedVersion);
+		// API.md: "" = no suggestion; nothing to suggest for a prompt without any finding.
+		return result.isSafe() && problems.isEmpty() ? new CheckResponse(problems, "") : result;
 	}
 
-	private static ProblemCategory toCategory(String value) {
-		return Arrays.stream(ProblemCategory.values())
-				.filter(category -> category.name().equals(value))
+	/** Lenient about content (fail closed), strict about structure. */
+	private static Problem toProblem(Document value, String prompt) {
+		if (value == null || !value.isMap()) {
+			throw new LlmException("Problem is not an object");
+		}
+		Map<String, Document> fields = value.asMap();
+		String ruleId = requireString(fields.get("ruleId")).strip();
+		String message = requireString(fields.get("message")).strip();
+		String location = requireString(fields.get("location"));
+		return new Problem(
+				ruleId.isEmpty() ? Problem.UNSPECIFIED_RULE : ruleId,
+				toSeverity(requireString(fields.get("severity"))),
+				message.isEmpty() ? UNSPECIFIED_MESSAGE : message,
+				// API.md: location is copied verbatim from the prompt; anything else is dropped.
+				prompt.contains(location) ? location : "");
+	}
+
+	/** Unknown severities count as critical, so they can never approve a prompt. */
+	private static Severity toSeverity(String value) {
+		return Arrays.stream(Severity.values())
+				.filter(severity -> severity.name().equals(value.strip().toUpperCase(Locale.ROOT)))
 				.findFirst()
-				.orElse(ProblemCategory.OTHER);
+				.orElse(Severity.CRITICAL);
 	}
 
 	private static boolean requireBoolean(Map<String, Document> fields, String name) {
@@ -184,24 +204,20 @@ public class BedrockLlmClient implements LlmClient {
 	}
 
 	private static ToolSpecification resultToolSpec() {
-		Document categoryNames = Document.fromList(Arrays.stream(ProblemCategory.values())
-				.map(category -> Document.fromString(category.name()))
+		Document severityNames = Document.fromList(Arrays.stream(Severity.values())
+				.map(severity -> Document.fromString(severity.jsonValue()))
 				.toList());
 
-		Document schema = Document.fromMap(Map.of(
-				"type", Document.fromString("object"),
-				"properties", Document.fromMap(Map.of(
-						"isSafe", Document.fromMap(Map.of("type", Document.fromString("boolean"))),
-						"problems", arrayOf(Document.fromMap(Map.of("type", Document.fromString("string")))),
-						"categories", arrayOf(Document.fromMap(Map.of(
-								"type", Document.fromString("string"),
-								"enum", categoryNames))),
-						"improvedVersion", Document.fromMap(Map.of("type", Document.fromString("string"))))),
-				"required", Document.fromList(List.of(
-						Document.fromString("isSafe"),
-						Document.fromString("problems"),
-						Document.fromString("categories"),
-						Document.fromString("improvedVersion")))));
+		Document problemSchema = objectOf(Map.of(
+				"ruleId", typeOf("string"),
+				"severity", Document.fromMap(Map.of("type", Document.fromString("string"), "enum", severityNames)),
+				"message", typeOf("string"),
+				"location", typeOf("string")));
+
+		Document schema = objectOf(Map.of(
+				"isSafe", typeOf("boolean"),
+				"problems", Document.fromMap(Map.of("type", Document.fromString("array"), "items", problemSchema)),
+				"improvedVersion", typeOf("string")));
 
 		return ToolSpecification.builder()
 				.name(TOOL_NAME)
@@ -210,7 +226,15 @@ public class BedrockLlmClient implements LlmClient {
 				.build();
 	}
 
-	private static Document arrayOf(Document itemSchema) {
-		return Document.fromMap(Map.of("type", Document.fromString("array"), "items", itemSchema));
+	/** JSON schema of an object whose properties are all required. */
+	private static Document objectOf(Map<String, Document> properties) {
+		return Document.fromMap(Map.of(
+				"type", Document.fromString("object"),
+				"properties", Document.fromMap(properties),
+				"required", Document.fromList(properties.keySet().stream().sorted().map(Document::fromString).toList())));
+	}
+
+	private static Document typeOf(String type) {
+		return Document.fromMap(Map.of("type", Document.fromString(type)));
 	}
 }

@@ -1,7 +1,8 @@
 package com.compliancechecker.llm;
 
 import com.compliancechecker.model.CheckResponse;
-import com.compliancechecker.model.ProblemCategory;
+import com.compliancechecker.model.Problem;
+import com.compliancechecker.model.Severity;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import software.amazon.awssdk.core.document.Document;
@@ -33,27 +34,30 @@ class BedrockLlmClientTest {
 
 	private static final String MODEL_ID = "eu.amazon.nova-2-lite-v1:0";
 	private static final String PROMPT = "Please summarise the account of Erika Mustermann, IBAN DE89370400440532013000.";
-	private static final String RULES = "# Rules\n- Never share customer names or IBANs with external AI systems.";
+	private static final String RULES = "# Rules\n### R-01 Customer names (CRITICAL)\n### R-02 IBANs (CRITICAL)";
 
 	private final BedrockRuntimeClient bedrock = mock(BedrockRuntimeClient.class);
 	private final BedrockLlmClient llmClient = new BedrockLlmClient(bedrock, MODEL_ID);
 
 	@Test
-	void mapsToolResultToCheckResponse() {
-		givenBedrockAnswers(toolResult(false, List.of("Contains a customer name", "Contains an IBAN"),
-				List.of("CUSTOMER_DATA", "ACCOUNT_DATA"), "Please summarise the account of [CUSTOMER_NAME], IBAN [IBAN]."));
+	void mapsToolResultToApiMdProblems() {
+		givenBedrockAnswers(false,
+				List.of(problem("R-01", "critical", "Contains a customer name.", "Erika Mustermann"),
+						problem("R-02", "critical", "Contains an IBAN.", "DE89370400440532013000")),
+				"Please summarise the account of [CUSTOMER_NAME_1], IBAN [IBAN_1].");
 
 		CheckResponse result = llmClient.check(PROMPT, RULES);
 
 		assertThat(result.isSafe()).isFalse();
-		assertThat(result.problems()).containsExactly("Contains a customer name", "Contains an IBAN");
-		assertThat(result.categories()).containsExactly(ProblemCategory.CUSTOMER_DATA, ProblemCategory.ACCOUNT_DATA);
-		assertThat(result.improvedVersion()).isEqualTo("Please summarise the account of [CUSTOMER_NAME], IBAN [IBAN].");
+		assertThat(result.problems()).containsExactly(
+				new Problem("R-01", Severity.CRITICAL, "Contains a customer name.", "Erika Mustermann"),
+				new Problem("R-02", Severity.CRITICAL, "Contains an IBAN.", "DE89370400440532013000"));
+		assertThat(result.improvedVersion()).isEqualTo("Please summarise the account of [CUSTOMER_NAME_1], IBAN [IBAN_1].");
 	}
 
 	@Test
 	void sendsPromptAsDataAndRulesInSystemPrompt() {
-		givenBedrockAnswers(toolResult(true, List.of(), List.of(), "harmless"));
+		givenBedrockAnswers(true, List.of(), "");
 
 		llmClient.check(PROMPT, RULES);
 
@@ -68,59 +72,90 @@ class BedrockLlmClientTest {
 	}
 
 	@Test
-	void safeResultWithProblemsIsNotSafe() {
-		givenBedrockAnswers(toolResult(true, List.of("Contains an IBAN"), List.of("ACCOUNT_DATA"), "..."));
+	void isSafeFollowsSeveritiesNotTheModelFlag() {
+		givenBedrockAnswers(true, List.of(problem("R-02", "critical", "Contains an IBAN.", "")), "...");
 
 		assertThat(llmClient.check(PROMPT, RULES).isSafe()).isFalse();
 	}
 
 	@Test
-	void safeResultHasNoSuggestion() {
-		givenBedrockAnswers(toolResult(true, List.of(), List.of(), "the original prompt again"));
+	void lowSeverityOnlyIsSafe() {
+		givenBedrockAnswers(true, List.of(problem("R-10", "low", "Consider shortening.", "")), "");
+
+		assertThat(llmClient.check(PROMPT, RULES).isSafe()).isTrue();
+	}
+
+	@Test
+	void safeResultWithoutProblemsHasNoSuggestion() {
+		givenBedrockAnswers(true, List.of(), "the original prompt again");
 
 		CheckResponse result = llmClient.check(PROMPT, RULES);
 
 		assertThat(result.isSafe()).isTrue();
-		assertThat(result.problems()).isEmpty();
 		assertThat(result.improvedVersion()).isEmpty();
 	}
 
 	@Test
-	void unsafeResultWithoutProblemTextGetsGenericProblem() {
-		givenBedrockAnswers(toolResult(false, List.of(" "), List.of(), "Please summarise the account of [CUSTOMER_NAME]."));
+	void unsafeVerdictWithoutBlockingProblemGetsUnspecifiedCriticalProblem() {
+		givenBedrockAnswers(false, List.of(problem("R-10", "low", "Just a notice.", "")), "...");
 
 		CheckResponse result = llmClient.check(PROMPT, RULES);
 
 		assertThat(result.isSafe()).isFalse();
-		assertThat(result.problems()).containsExactly(BedrockLlmClient.UNSPECIFIED_PROBLEM);
+		assertThat(result.problems()).contains(new Problem(Problem.UNSPECIFIED_RULE, Severity.CRITICAL,
+				BedrockLlmClient.UNSPECIFIED_MESSAGE, ""));
 	}
 
 	@Test
-	void unknownCategoryBecomesOther() {
-		givenBedrockAnswers(toolResult(false, List.of("Something else"), List.of("SOMETHING_NEW"), "..."));
+	void unknownSeverityCountsAsCriticalAndBlankRuleIdBecomesUnspecified() {
+		givenBedrockAnswers(true, List.of(problem(" ", "severe", "Something.", "")), "...");
 
-		assertThat(llmClient.check(PROMPT, RULES).categories()).containsExactly(ProblemCategory.OTHER);
+		CheckResponse result = llmClient.check(PROMPT, RULES);
+
+		assertThat(result.isSafe()).isFalse();
+		assertThat(result.problems().getFirst().ruleId()).isEqualTo(Problem.UNSPECIFIED_RULE);
+		assertThat(result.problems().getFirst().severity()).isEqualTo(Severity.CRITICAL);
+	}
+
+	@Test
+	void locationNotFoundVerbatimInPromptIsDropped() {
+		givenBedrockAnswers(false, List.of(problem("R-01", "critical", "Contains a name.", "Mrs Mustermann")), "...");
+
+		assertThat(llmClient.check(PROMPT, RULES).problems().getFirst().location()).isEmpty();
 	}
 
 	@Test
 	void failsWhenModelAnswersWithTextInsteadOfTool() {
-		givenBedrockAnswers(response(ContentBlock.fromText("Looks fine to me!"), StopReason.END_TURN));
+		given(bedrock.converse(any(ConverseRequest.class)))
+				.willReturn(response(ContentBlock.fromText("Looks fine to me!"), StopReason.END_TURN));
 
 		assertThatThrownBy(() -> llmClient.check(PROMPT, RULES)).isInstanceOf(LlmException.class);
 	}
 
 	@Test
 	void failsWhenResultFieldIsMissing() {
-		Map<String, Document> incomplete = new HashMap<>(toolInput(true, List.of(), List.of(), "x").asMap());
+		Map<String, Document> incomplete = new HashMap<>(toolInput(true, List.of(), "x").asMap());
 		incomplete.remove("isSafe");
-		givenBedrockAnswers(toolUse(Document.fromMap(incomplete)));
+		given(bedrock.converse(any(ConverseRequest.class))).willReturn(toolUse(Document.fromMap(incomplete)));
+
+		assertThatThrownBy(() -> llmClient.check(PROMPT, RULES)).isInstanceOf(LlmException.class);
+	}
+
+	@Test
+	void failsWhenProblemFieldIsMissing() {
+		Document withoutLocation = Document.fromMap(Map.of(
+				"ruleId", Document.fromString("R-01"),
+				"severity", Document.fromString("critical"),
+				"message", Document.fromString("Contains a name.")));
+		givenBedrockAnswers(false, List.of(withoutLocation), "...");
 
 		assertThatThrownBy(() -> llmClient.check(PROMPT, RULES)).isInstanceOf(LlmException.class);
 	}
 
 	@Test
 	void failsWhenOutputWasCutOff() {
-		givenBedrockAnswers(response(ContentBlock.fromText("{\"isSafe\": tr"), StopReason.MAX_TOKENS));
+		given(bedrock.converse(any(ConverseRequest.class)))
+				.willReturn(response(ContentBlock.fromText("{\"isSafe\": tr"), StopReason.MAX_TOKENS));
 
 		assertThatThrownBy(() -> llmClient.check(PROMPT, RULES)).isInstanceOf(LlmException.class);
 	}
@@ -146,21 +181,22 @@ class BedrockLlmClientTest {
 				.hasMessage("Bedrock call failed: SdkClientException");
 	}
 
-	private void givenBedrockAnswers(ConverseResponse response) {
-		given(bedrock.converse(any(ConverseRequest.class))).willReturn(response);
+	private void givenBedrockAnswers(boolean isSafe, List<Document> problems, String improvedVersion) {
+		given(bedrock.converse(any(ConverseRequest.class))).willReturn(toolUse(toolInput(isSafe, problems, improvedVersion)));
 	}
 
-	private static ConverseResponse toolResult(boolean isSafe, List<String> problems, List<String> categories,
-			String improvedVersion) {
-		return toolUse(toolInput(isSafe, problems, categories, improvedVersion));
+	private static Document problem(String ruleId, String severity, String message, String location) {
+		return Document.fromMap(Map.of(
+				"ruleId", Document.fromString(ruleId),
+				"severity", Document.fromString(severity),
+				"message", Document.fromString(message),
+				"location", Document.fromString(location)));
 	}
 
-	private static Document toolInput(boolean isSafe, List<String> problems, List<String> categories,
-			String improvedVersion) {
+	private static Document toolInput(boolean isSafe, List<Document> problems, String improvedVersion) {
 		return Document.fromMap(Map.of(
 				"isSafe", Document.fromBoolean(isSafe),
-				"problems", strings(problems),
-				"categories", strings(categories),
+				"problems", Document.fromList(problems),
 				"improvedVersion", Document.fromString(improvedVersion)));
 	}
 
@@ -172,9 +208,5 @@ class BedrockLlmClientTest {
 	private static ConverseResponse response(ContentBlock content, StopReason stopReason) {
 		Message message = Message.builder().role(ConversationRole.ASSISTANT).content(content).build();
 		return ConverseResponse.builder().output(ConverseOutput.fromMessage(message)).stopReason(stopReason).build();
-	}
-
-	private static Document strings(List<String> values) {
-		return Document.fromList(values.stream().map(Document::fromString).toList());
 	}
 }

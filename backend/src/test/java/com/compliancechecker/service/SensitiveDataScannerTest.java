@@ -15,9 +15,18 @@ class SensitiveDataScannerTest {
 		ScanResult first = scanner.scan("Mail erika.mustermann@example.com, call +49 30 1234567, card 4111 1111 1111 1111, "
 				+ "IBAN DE89 3704 0044 0532 0130 00. The merger is confidential.");
 
-		assertThat(first.foundSensitiveData()).isTrue();
-		// Placeholders must not trigger the rules again, otherwise the history could never store sanitized text.
+		assertThat(first.problems()).hasSize(5);
+		// Placeholders must not trigger the rules again, otherwise the history could never store sanitised text.
 		assertThat(scanner.scan(first.redactedText()).foundSensitiveData()).isFalse();
+	}
+
+	@Test
+	void overlappingMatchesAreReportedOnce() {
+		// The IBAN contains digit groups that alone could look like a phone number.
+		ScanResult result = scanner.scan("IBAN DE89 3704 0044 0532 0130 00");
+
+		assertThat(result.problems()).hasSize(1);
+		assertThat(result.redactedText()).isEqualTo("IBAN [IBAN_1]");
 	}
 
 	@Test

@@ -1,6 +1,8 @@
 package com.compliancechecker.history;
 
+import com.compliancechecker.history.HistoryEntry.Finding;
 import com.compliancechecker.model.CheckResponse;
+import com.compliancechecker.model.Problem;
 import com.compliancechecker.service.SensitiveDataScanner;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -13,13 +15,16 @@ import java.time.Instant;
 import java.util.List;
 
 /**
- * Stores and lists past checks. Never stores the original prompt: only time, result, categories and the
- * sanitized prompt, and the sanitized prompt only if it passes {@link #storableImprovedVersion}.
+ * Stores and lists past checks. Never stores the original prompt or matched passages: only time, result, rule ids with
+ * severities and the sanitised prompt, and the sanitised prompt only if it passes {@link #storableImprovedVersion}.
  */
 @Service
 public class HistoryService {
 
 	private static final Logger log = LoggerFactory.getLogger(HistoryService.class);
+
+	/** Shorter passages (e.g. "R") would also match harmless text. */
+	private static final int MIN_CHECKED_LOCATION_LENGTH = 3;
 
 	private final HistoryRepository repository;
 	private final SensitiveDataScanner scanner;
@@ -41,9 +46,11 @@ public class HistoryService {
 	 * is logged and does not fail the check itself.
 	 */
 	public void record(String originalPrompt, CheckResponse result) {
-		String improvedVersion = storableImprovedVersion(originalPrompt, result.improvedVersion());
-		HistoryEntry entry = new HistoryEntry(Instant.now(clock), result.isSafe(), result.categories(),
-				improvedVersion);
+		List<Finding> findings = result.problems().stream()
+				.map(problem -> new Finding(problem.safeRuleId(), problem.severity()))
+				.toList();
+		HistoryEntry entry = new HistoryEntry(Instant.now(clock), result.isSafe(), findings,
+				storableImprovedVersion(originalPrompt, result));
 		try {
 			repository.save(entry);
 		}
@@ -57,19 +64,26 @@ public class HistoryService {
 	}
 
 	/**
-	 * Returns the sanitized prompt if it is safe to store, otherwise null. It is not stored if it
+	 * Returns the sanitised prompt if it is safe to store, otherwise "". It is not stored if it
 	 * <ul>
-	 * <li>is identical to the original prompt (nothing was sanitized, so it would be the original),</li>
+	 * <li>is identical to the original prompt (nothing was sanitised, so it would be the original),</li>
+	 * <li>still contains a matched passage ({@code location}) of one of the problems,</li>
 	 * <li>still contains sensitive data the scanner can find, or</li>
 	 * <li>is too long for the column.</li>
 	 * </ul>
 	 */
-	String storableImprovedVersion(String originalPrompt, String improvedVersion) {
-		if (improvedVersion == null || improvedVersion.isBlank()
+	String storableImprovedVersion(String originalPrompt, CheckResponse result) {
+		String improvedVersion = result.improvedVersion();
+		boolean containsMatchedPassage = result.problems().stream()
+				.map(Problem::location)
+				.filter(location -> location.strip().length() >= MIN_CHECKED_LOCATION_LENGTH)
+				.anyMatch(improvedVersion::contains);
+		if (improvedVersion.isBlank()
 				|| improvedVersion.strip().equals(originalPrompt.strip())
+				|| containsMatchedPassage
 				|| improvedVersion.length() > HistoryEntry.MAX_IMPROVED_VERSION_LENGTH
 				|| scanner.scan(improvedVersion).foundSensitiveData()) {
-			return null;
+			return "";
 		}
 		return improvedVersion;
 	}

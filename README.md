@@ -50,7 +50,7 @@ flowchart LR
     A[👤 User<br/>Website] -->|prompt + compliance rules| B[⚙️ Spring Boot backend]
     B -->|default| M[🧪 Mock<br/>simple pattern rules]
     B -->|LLM_PROVIDER=bedrock| L[🤖 Amazon Bedrock<br/>Nova 2 Lite]
-    B -->|time, result, categories,<br/>sanitized prompt| H[(🗄️ H2 history)]
+    B -->|time, result, rule ids + severities,<br/>sanitised prompt| H[(🗄️ H2 history)]
     B -->|isSafe / problems / improvedVersion| A
 ```
 
@@ -99,9 +99,20 @@ user and password; the driver is already included.
 
 ### Mock mode
 
-The mock is **not a real compliance check**. It ignores the uploaded compliance rules and only finds a few patterns:
-email addresses, phone numbers, credit card numbers (Luhn-checked), IBANs and confidentiality keywords such as
-*confidential* or *vertraulich*. Every result is marked with `"simulated": true`.
+The mock is **not a real compliance check**. It ignores the uploaded compliance rules and only finds a few patterns,
+reported with the rule ids of [`Testdata/compliance-guide-musterfinanz.md`](Testdata/compliance-guide-musterfinanz.md)
+(like the website's demo mode):
+
+| Pattern                                   | `ruleId` | `severity` | Placeholder       |
+|-------------------------------------------|----------|------------|-------------------|
+| Sentence with a confidentiality keyword (*confidential*, *internal only*, *vertraulich*, …) | `R-09` | `medium` | `[REMOVED_n]` (whole sentence) |
+| IBAN                                      | `R-02`   | `critical` | `[IBAN_n]`        |
+| Credit card number (Luhn-checked)         | `R-02`   | `critical` | `[CARD_NUMBER_n]` |
+| Email address                             | `R-01`   | `critical` | `[EMAIL_n]`       |
+| Phone number                              | `R-01`   | `critical` | `[PHONE_n]`       |
+
+API.md allows no extra response field, so mock results are not marked in the response. The backend logs a warning at
+startup instead: `LLM provider 'mock' is active: results are simulated`.
 
 ### Real check with Amazon Bedrock
 
@@ -116,7 +127,11 @@ LLM_PROVIDER=bedrock ./mvnw spring-boot:run
 - **Every check is a paid AWS call.**
 - Credentials come from the standard AWS chain: `aws sso login` / an AWS profile locally, an IAM role on AWS.
   **Never put AWS keys into code, `application.yml` or the repository.**
-- If Bedrock fails or returns an unusable answer, the API returns `502` and the prompt is **not** approved.
+- The model reports `ruleId` and `severity` from the uploaded compliance rules. Unknown severities count as `critical`,
+  a `location` that is not found verbatim in the prompt becomes `""`, and an "unsafe" verdict without a blocking
+  problem gets an `UNSPECIFIED` / `critical` problem.
+- If Bedrock fails, times out (50 s) or returns an unusable answer, the API returns `502` and the prompt is **not**
+  approved.
 
 ## Endpoints
 
@@ -125,15 +140,51 @@ LLM_PROVIDER=bedrock ./mvnw spring-boot:run
 | `POST` | `/api/check`   | Check a prompt against compliance rules     |
 | `GET`  | `/api/history` | The latest 100 checks, newest first         |
 
-Payloads, limits and error format: [API.md](API.md).
+`POST /api/check` follows [API.md](API.md) exactly. The rest below is backend-only and not (yet) part of API.md.
+
+### `GET /api/history`
+
+```json
+[
+  {
+    "id": 2,
+    "createdAt": "2026-11-21T10:00:00Z",
+    "isSafe": false,
+    "findings": [{ "ruleId": "R-01", "severity": "critical" }],
+    "improvedVersion": "Reply to [EMAIL_1] about her loan."
+  }
+]
+```
+
+### Error responses
+
+```json
+{
+  "error": "INVALID_REQUEST",
+  "message": "The request is invalid. See fieldErrors.",
+  "fieldErrors": { "prompt": "must not be empty" },
+  "requestId": "6f1c..."
+}
+```
+
+| Status | `error`                  | When                                       |
+|--------|--------------------------|--------------------------------------------|
+| 400    | `INVALID_REQUEST`        | empty/missing/too long field, invalid JSON |
+| 405    | `METHOD_NOT_ALLOWED`     | wrong HTTP method                          |
+| 415    | `UNSUPPORTED_MEDIA_TYPE` | `Content-Type` is not `application/json`   |
+| 502    | `LLM_UNAVAILABLE`        | the LLM could not be reached or failed     |
+| 500    | `INTERNAL_ERROR`         | anything else                              |
 
 ## Privacy
 
 - The **original prompt is never stored**, neither in the database nor in logs. Logs contain only metadata
-  (lengths, result, categories, model, duration).
-- The history stores only: time, `isSafe`, problem categories and the sanitized prompt. The sanitized prompt is only
-  stored if it differs from the original and the pattern scanner finds no sensitive data left in it; otherwise it is
-  stored as `null`. Compliance rules and matched text are never stored.
+  (lengths, result, rule ids and severities, model, duration).
+- `problems[].location` (the matched passage, required by API.md) is only returned to the user who sent the prompt.
+  It is **never logged or stored**.
+- The history stores only: time, `isSafe`, rule ids with severities and the sanitised prompt. Rule ids that do not
+  look like ids (e.g. free text from the LLM) are stored as `UNSPECIFIED`. The sanitised prompt is only stored if it
+  differs from the original, contains none of the matched passages and the pattern scanner finds no sensitive data
+  left in it; otherwise it is stored as `""`. Compliance rules, messages and matched text are never stored.
 - Error responses contain fixed texts only, never parts of the request.
 
 ## Backend structure

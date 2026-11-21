@@ -21,7 +21,8 @@ public class BedrockConfig {
 	BedrockRuntimeClient bedrockRuntimeClient(@Value("${llm.aws-region}") String awsRegion) {
 		return BedrockRuntimeClient.builder()
 				.region(Region.of(awsRegion))
-				.overrideConfiguration(config -> config.apiCallTimeout(Duration.ofSeconds(60)))
+				// Below the web client's 60 s limit (API.md), so the user gets a clean 502 instead of a client timeout.
+				.overrideConfiguration(config -> config.apiCallTimeout(Duration.ofSeconds(50)))
 				.build();
 	}
 }

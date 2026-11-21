@@ -28,8 +28,9 @@ public class ComplianceService {
 		CheckResponse result = llmClient.check(prompt, complianceRules);
 		long latencyMs = (System.nanoTime() - startNanos) / 1_000_000;
 
-		log.info("check promptChars={} rulesChars={} safe={} categories={} model={} latencyMs={}",
-				prompt.length(), complianceRules.length(), result.isSafe(), result.categories(),
+		// Problem.toString() shows only rule id and severity, never message or location.
+		log.info("check promptChars={} rulesChars={} safe={} problems={} model={} latencyMs={}",
+				prompt.length(), complianceRules.length(), result.isSafe(), result.problems(),
 				llmClient.modelId(), latencyMs);
 		historyService.record(prompt, result);
 		return result;

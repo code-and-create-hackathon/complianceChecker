@@ -12,7 +12,7 @@ import org.springframework.stereotype.Component;
  * Simulated compliance check for local development and demos without AWS, based on {@link SensitiveDataScanner}.
  *
  * <p>This is not a real compliance check: it ignores the uploaded compliance rules and only finds the scanner's
- * patterns. Every result is marked with {@code simulated = true}.
+ * patterns. API.md allows no extra field to mark this, so it is stated in the log and the README.
  */
 @Component
 @ConditionalOnProperty(name = "llm.provider", havingValue = "mock", matchIfMissing = true)
@@ -30,11 +30,9 @@ public class MockLlmClient implements LlmClient {
 	@Override
 	public CheckResponse check(String prompt, String complianceRules) {
 		ScanResult scan = scanner.scan(prompt);
-		if (!scan.foundSensitiveData()) {
-			// API contract: "" means no suggestion.
-			return new CheckResponse(true, scan.problems(), scan.categories(), "", true);
-		}
-		return new CheckResponse(false, scan.problems(), scan.categories(), scan.redactedText(), true);
+		CheckResponse withSuggestion = new CheckResponse(scan.problems(), scan.redactedText());
+		// API.md: "" = no suggestion; like the frontend's demo mode, only unsafe prompts get one.
+		return withSuggestion.isSafe() ? new CheckResponse(scan.problems(), "") : withSuggestion;
 	}
 
 	@Override

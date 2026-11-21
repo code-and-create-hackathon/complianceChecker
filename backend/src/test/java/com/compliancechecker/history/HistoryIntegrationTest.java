@@ -10,6 +10,7 @@ import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.json.JsonCompareMode;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.List;
@@ -18,6 +19,7 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -56,20 +58,25 @@ class HistoryIntegrationTest {
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.length()").value(2))
 				.andExpect(jsonPath("$[0].isSafe").value(false))
-				.andExpect(jsonPath("$[0].categories[0]").value("CUSTOMER_DATA"))
-				.andExpect(jsonPath("$[0].improvedVersion").value("Reply to [EMAIL] about her loan."))
+				.andExpect(jsonPath("$[0].findings[0].ruleId").value("R-01"))
+				.andExpect(jsonPath("$[0].findings[0].severity").value("critical"))
+				.andExpect(jsonPath("$[0].findings[0].location").doesNotExist())
+				.andExpect(jsonPath("$[0].improvedVersion").value("Reply to [EMAIL_1] about her loan."))
 				.andExpect(jsonPath("$[0].createdAt").isNotEmpty())
 				.andExpect(jsonPath("$[1].isSafe").value(true))
-				.andExpect(jsonPath("$[1].improvedVersion").isEmpty());
+				.andExpect(jsonPath("$[1].findings").isEmpty())
+				.andExpect(jsonPath("$[1].improvedVersion").value(""));
 	}
 
 	@Test
-	void originalPromptIsNeverStoredOrLogged(CapturedOutput output) throws Exception {
+	void originalPromptAndMatchedPassagesAreNeverStoredOrLogged(CapturedOutput output) throws Exception {
 		check("Reply to " + EMAIL + " about her loan.");
-		check("Call +49 30 1234567. The merger with Example AG is strictly confidential.");
+		// The response contains the matched passages (location), as API.md requires; DB and log must not.
+		check("Call +49 30 1234567. The merger with Example AG is strictly confidential.")
+				.andExpect(jsonPath("$.problems[0].location").value("+49 30 1234567"));
 		check(SAFE_PROMPT);
 
-		String allStoredValues = jdbcTemplate.queryForList("SELECT * FROM history_entry").stream()
+		String allStoredValues = jdbcTemplate.queryForList("SELECT * FROM check_history").stream()
 				.map(Map::values)
 				.flatMap(java.util.Collection::stream)
 				.map(String::valueOf)
@@ -82,11 +89,11 @@ class HistoryIntegrationTest {
 	}
 
 	@Test
-	void checkStillWorksAsBefore() throws Exception {
+	void checkAnswersExactlyInApiMdShape() throws Exception {
 		check(SAFE_PROMPT)
-				.andExpect(jsonPath("$.isSafe").value(true))
-				.andExpect(jsonPath("$.improvedVersion").value(""))
-				.andExpect(jsonPath("$.simulated").value(true));
+				.andExpect(content().json("""
+						{"isSafe": true, "problems": [], "improvedVersion": ""}
+						""", JsonCompareMode.STRICT));
 	}
 
 	private org.springframework.test.web.servlet.ResultActions check(String prompt) throws Exception {

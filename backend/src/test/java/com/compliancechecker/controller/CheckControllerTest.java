@@ -4,7 +4,8 @@ import com.compliancechecker.history.HistoryService;
 import com.compliancechecker.llm.LlmClient;
 import com.compliancechecker.llm.LlmException;
 import com.compliancechecker.model.CheckResponse;
-import com.compliancechecker.model.ProblemCategory;
+import com.compliancechecker.model.Problem;
+import com.compliancechecker.model.Severity;
 import com.compliancechecker.service.ComplianceService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -15,6 +16,7 @@ import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.json.JsonCompareMode;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 
@@ -26,6 +28,7 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -48,17 +51,33 @@ class CheckControllerTest {
 	private HistoryService historyService;
 
 	@Test
-	void returnsResultInApiShape() throws Exception {
-		given(llmClient.check(anyString(), anyString())).willReturn(new CheckResponse(false,
-				List.of("Contains an IBAN"), List.of(ProblemCategory.ACCOUNT_DATA), "Transfer from [IBAN]", true));
+	void returnsExactlyTheApiMdResponseShape() throws Exception {
+		given(llmClient.check(anyString(), anyString())).willReturn(new CheckResponse(
+				List.of(new Problem("R-02", Severity.CRITICAL, "Contains an IBAN.", SECRET)), "Transfer from [IBAN_1]"));
 
+		// STRICT: no extra or missing fields, as API.md requires.
 		postCheck(json("Transfer from " + SECRET, "# Rules\nNo IBANs."))
 				.andExpect(status().isOk())
-				.andExpect(jsonPath("$.isSafe").value(false))
-				.andExpect(jsonPath("$.problems[0]").value("Contains an IBAN"))
-				.andExpect(jsonPath("$.categories[0]").value("ACCOUNT_DATA"))
-				.andExpect(jsonPath("$.improvedVersion").value("Transfer from [IBAN]"))
-				.andExpect(jsonPath("$.simulated").value(true));
+				.andExpect(content().json("""
+						{
+						  "isSafe": false,
+						  "problems": [
+						    {"ruleId": "R-02", "severity": "critical", "message": "Contains an IBAN.", "location": "%s"}
+						  ],
+						  "improvedVersion": "Transfer from [IBAN_1]"
+						}
+						""".formatted(SECRET), JsonCompareMode.STRICT));
+	}
+
+	@Test
+	void lowSeverityProblemKeepsPromptSafe() throws Exception {
+		given(llmClient.check(anyString(), anyString())).willReturn(new CheckResponse(
+				List.of(new Problem("R-10", Severity.LOW, "Consider removing the project name.", "Project X")), ""));
+
+		postCheck(json("Status of Project X?", "rules"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.isSafe").value(true))
+				.andExpect(jsonPath("$.problems[0].severity").value("low"));
 	}
 
 	@Test
@@ -90,7 +109,7 @@ class CheckControllerTest {
 	@Test
 	void acceptsComplianceRulesUpTo500000Characters() throws Exception {
 		given(llmClient.check(anyString(), anyString()))
-				.willReturn(new CheckResponse(true, List.of(), List.of(), "", true));
+				.willReturn(new CheckResponse(List.of(), ""));
 
 		postCheck(json("Explain ETFs.", "r".repeat(500_000))).andExpect(status().isOk());
 		postCheck(json("Explain ETFs.", "r".repeat(500_001)))
@@ -147,11 +166,12 @@ class CheckControllerTest {
 	@Test
 	void logsOnlyMetadata(CapturedOutput output) throws Exception {
 		given(llmClient.check(anyString(), anyString()))
-				.willReturn(new CheckResponse(true, List.of(), List.of(), "harmless", true));
+				.willReturn(new CheckResponse(
+						List.of(new Problem("R-02", Severity.CRITICAL, "Contains an IBAN.", SECRET)), "Note [IBAN_1]"));
 
 		postCheck(json("Note " + SECRET, "rules")).andExpect(status().isOk());
 
-		assertThat(output.getAll()).contains("safe=true").doesNotContain(SECRET);
+		assertThat(output.getAll()).contains("safe=false", "R-02").doesNotContain(SECRET);
 	}
 
 	private ResultActions postCheck(String body) throws Exception {
