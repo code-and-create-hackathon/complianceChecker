@@ -1,5 +1,10 @@
 package com.compliancechecker.controller;
 
+import com.compliancechecker.TestAccounts;
+import com.compliancechecker.account.AuthService;
+import com.compliancechecker.account.UserRepository;
+import com.compliancechecker.account.UserService;
+import com.compliancechecker.policy.PolicyService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -24,22 +29,37 @@ class CorsTest {
 	@Autowired
 	private MockMvc mockMvc;
 
+	@Autowired
+	private UserService userService;
+
+	@Autowired
+	private UserRepository userRepository;
+
+	@Autowired
+	private AuthService authService;
+
+	@Autowired
+	private PolicyService policyService;
+
 	@Test
 	void extensionPreflightIsAllowed() throws Exception {
 		mockMvc.perform(options("/api/check")
 						.header(HttpHeaders.ORIGIN, EXTENSION)
 						.header(HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD, "POST")
-						.header(HttpHeaders.ACCESS_CONTROL_REQUEST_HEADERS, "Content-Type"))
+						.header(HttpHeaders.ACCESS_CONTROL_REQUEST_HEADERS, "Content-Type, Authorization"))
 				.andExpect(status().isOk())
 				.andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN, EXTENSION));
 	}
 
 	@Test
 	void extensionCanRunACheck() throws Exception {
+		TestAccounts.publishPolicy(policyService, userRepository, "# Rules");
 		mockMvc.perform(post("/api/check")
 						.header(HttpHeaders.ORIGIN, EXTENSION)
+						.header(HttpHeaders.AUTHORIZATION,
+								TestAccounts.workerAuthorization(userService, authService, "erika"))
 						.contentType(MediaType.APPLICATION_JSON)
-						.content("{\"prompt\":\"Reply to erika@example.com\",\"compliance\":\"# Rules\"}"))
+						.content("{\"prompt\":\"Reply to erika@example.com\"}"))
 				.andExpect(status().isOk())
 				.andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN, EXTENSION))
 				.andExpect(jsonPath("$.isSafe").value(false))
