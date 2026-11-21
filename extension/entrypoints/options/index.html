@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Compliance Checker – Rules</title>
+    <title>Compliance Checker – Settings</title>
     <meta name="manifest.open_in_tab" content="true" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -12,6 +12,40 @@
   </head>
   <body>
     <main>
+      <!-- With a backend: login. The rules are the company policy the administrator publishes on the website. -->
+      <section id="account-section" hidden>
+        <h1>Compliance Checker</h1>
+        <p class="hint">
+          Prompts on supported AI chats are checked against your company's compliance policy before they are sent.
+        </p>
+
+        <form id="login-form" novalidate>
+          <label for="login-username">Username</label>
+          <input id="login-username" autocomplete="username" autocapitalize="none" spellcheck="false" />
+          <label for="login-code">Admin code <span class="hint-inline">(administrator only)</span></label>
+          <input id="login-code" type="password" autocomplete="current-password" />
+          <button type="submit" id="login-submit">Log in</button>
+          <!-- TODO(security): demo login without passwords; replace with the company's single sign-on. -->
+          <p class="hint">Demo login: workers need no password. Your administrator creates your account.</p>
+        </form>
+
+        <div id="logged-in" hidden>
+          <div class="summary-row">
+            <span>Logged in as <strong id="account-name"></strong></span>
+            <button type="button" class="link-button" id="logout">Log out</button>
+          </div>
+          <p id="policy-status" role="status"></p>
+          <p class="hint" id="admin-hint" hidden>
+            You are the administrator: publish the company policy and add workers on the
+            <a id="admin-link" target="_blank" rel="noopener">Compliance Checker website</a>.
+          </p>
+        </div>
+
+        <p class="message" id="login-error" role="alert" hidden></p>
+      </section>
+
+      <!-- Demo mode (no backend): rules stored only in this browser. -->
+      <section id="rules-section" hidden>
       <h1>Compliance rules</h1>
       <p class="hint">
         Prompts on supported AI chats are checked against these rules before they are sent.
@@ -38,6 +72,7 @@
       <p class="warning" id="empty" hidden>
         No rules loaded: prompts cannot be checked until you add at least one file.
       </p>
+      </section>
     </main>
     <script type="module" src="./main.js"></script>
   </body>

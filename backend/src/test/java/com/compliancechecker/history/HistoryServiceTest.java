@@ -32,7 +32,7 @@ class HistoryServiceTest {
 	void storesTimeResultAndFindingsOnly() {
 		Problem problem = new Problem("R-01", Severity.CRITICAL, "Contains an email.", "erika.mustermann@example.com");
 
-		historyService.record(new CheckResponse(List.of(problem), "Reply to [EMAIL_1]"));
+		historyService.record(new CheckResponse(List.of(problem), "Reply to [EMAIL_1]"), "erika");
 
 		HistoryEntry saved = savedEntry();
 		assertThat(saved.getCreatedAt()).isEqualTo(NOW);
@@ -44,7 +44,7 @@ class HistoryServiceTest {
 	void storesNoTextAtAll() {
 		Problem problem = new Problem("R-01", Severity.CRITICAL, "Contains a name.", "Erika Mustermann");
 
-		historyService.record(new CheckResponse(List.of(problem), "Write to [NAME_1] about Erika's loan"));
+		historyService.record(new CheckResponse(List.of(problem), "Write to [NAME_1] about Erika's loan"), "erika");
 
 		// The entity has no field for any text; its string form must not contain any either.
 		assertThat(savedEntry().toString()).doesNotContain("Mustermann").doesNotContain("Write to");
@@ -57,7 +57,7 @@ class HistoryServiceTest {
 		// An LLM could put free text into ruleId; only id-like values are stored.
 		Problem odd = new Problem("Customer Erika Mustermann", Severity.HIGH, "Contains a name.", "");
 
-		historyService.record(new CheckResponse(List.of(odd), ""));
+		historyService.record(new CheckResponse(List.of(odd), ""), "erika");
 
 		assertThat(savedEntry().getFindings()).containsExactly(new Finding(Problem.UNSPECIFIED_RULE, Severity.HIGH));
 	}
@@ -66,7 +66,7 @@ class HistoryServiceTest {
 	void lowSeverityNoticeIsSafe() {
 		Problem notice = new Problem("R-10", Severity.LOW, "Just a notice.", "");
 
-		historyService.record(new CheckResponse(List.of(notice), ""));
+		historyService.record(new CheckResponse(List.of(notice), ""), "erika");
 
 		assertThat(savedEntry().isSafe()).isTrue();
 	}
@@ -75,7 +75,7 @@ class HistoryServiceTest {
 	void databaseFailureDoesNotFailTheCheck() {
 		given(repository.save(any())).willThrow(new DataAccessResourceFailureException("db down"));
 
-		assertThatNoException().isThrownBy(() -> historyService.record(new CheckResponse(List.of(), "")));
+		assertThatNoException().isThrownBy(() -> historyService.record(new CheckResponse(List.of(), ""), "erika"));
 	}
 
 	private HistoryEntry savedEntry() {

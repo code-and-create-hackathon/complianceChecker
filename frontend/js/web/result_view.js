@@ -168,7 +168,8 @@ export function renderResult() {
 
 export function renderError(error) {
   let message = error.message || "Unknown error.";
-  if (!isMockMode()) {
+  // Only when no backend answered at all; an error status comes with the backend's own explanation.
+  if (!isMockMode() && error.status === undefined) {
     message += " Without a backend, open the page with ?mock=1 to use demo mode.";
   }
   errorText.textContent = message;
