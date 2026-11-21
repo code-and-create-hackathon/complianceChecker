@@ -76,7 +76,7 @@ class BedrockConsole {
 
 	private void openInterface() {
 		String port = environment.getProperty("local.server.port", "8080");
-		String url = "http://localhost:" + port + "/?mock=1";
+		String url = "http://localhost:" + port + "/";
 		System.out.println("Frontend: " + url);
 		try {
 			if (Desktop.isDesktopSupported() && Desktop.getDesktop().isSupported(Desktop.Action.BROWSE)) {

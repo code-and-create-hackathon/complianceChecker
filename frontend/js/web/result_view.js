@@ -34,13 +34,13 @@ function fillMessages(data) {
   messageProblems.replaceChildren(
     ...problems.map((problem) => {
       const li = document.createElement("li");
-      li.textContent = `${problem.ruleId} · ${problem.severity} · ${problem.message}${problem.location ? ` · ${problem.location}` : ""}`;
+      li.textContent = `${problem.ruleId} · ${problem.category}`;
       return li;
     }),
   );
   $("result-problems-visible").replaceChildren(...problems.map((problem) => {
     const item = document.createElement("li");
-    item.textContent = `${problem.ruleId} (${problem.severity}): ${problem.message}${problem.location ? ` – ${problem.location}` : ""}`;
+    item.textContent = `${problem.ruleId} · ${problem.category}`;
     return item;
   }));
   messageImproved.textContent = (data?.improvedVersion || "").trim();
@@ -91,7 +91,7 @@ export function resetResult() {
 /** @param {import("../shared/validate.js").CheckResponse} data */
 export function renderResult(data) {
   const problems = fillMessages(data);
-  showStatus(Boolean(data.isSafe), problems.filter((problem) => problem.severity !== "low").length, Boolean(getSuggestion()));
+  showStatus(Boolean(data.isSafe), problems.length, Boolean(getSuggestion()));
   document.dispatchEvent(new CustomEvent("compliance:result", { detail: data }));
 }
 

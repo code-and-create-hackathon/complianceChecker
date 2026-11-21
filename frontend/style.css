@@ -122,6 +122,10 @@ svg {
   color: var(--text-muted);
 }
 
+.nova-status[data-state="ok"] { color: #176246; }
+.nova-status[data-state="error"] { color: #a52c20; }
+.nova-status[data-state="waiting"] { color: #745119; }
+
 /* ---------- Workspace ---------- */
 
 .workspace {
@@ -585,6 +589,11 @@ kbd {
 
 /* Suggestion preview: unstyled for now (theming is up to design), but long prompts must wrap, not scroll sideways. */
 #result-improved-text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+#message-raw {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }

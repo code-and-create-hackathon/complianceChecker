@@ -51,16 +51,29 @@ class CheckControllerTest {
 	@Test
 	void returnsResultInApiShape() throws Exception {
 		given(llmClient.check(anyString(), anyString())).willReturn(new CheckResponse(false,
-				List.of("Contains an IBAN"), List.of(ProblemCategory.ACCOUNT_DATA), "Transfer from [IBAN]", true,
-				List.of(new Finding("R-02", "critical", "Contains an IBAN", SECRET))));
+				List.of("ACCOUNT_DATA"), List.of(ProblemCategory.ACCOUNT_DATA), "Transfer from [IBAN]", false,
+				List.of(new Finding("R-02", "Kontodaten"))));
 
 		postCheck(json("Transfer from " + SECRET, "# Rules\nNo IBANs."))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.isSafe").value(false))
 				.andExpect(jsonPath("$.problems[0].ruleId").value("R-02"))
-				.andExpect(jsonPath("$.problems[0].location").value(SECRET))
+				.andExpect(jsonPath("$.problems[0].category").value("Kontodaten"))
 				.andExpect(jsonPath("$.improvedVersion").value("Transfer from [IBAN]"))
-				.andExpect(jsonPath("$.simulated").doesNotExist());
+				.andExpect(result -> assertThat(result.getResponse().getContentAsString()).doesNotContain(SECRET));
+	}
+
+	@Test
+	void rejectsMockResultsInsteadOfReturningThemAsComplianceDecisions() throws Exception {
+		given(llmClient.check(anyString(), anyString())).willReturn(new CheckResponse(true,
+				List.of(), List.of(), "", true));
+
+		postCheck(json("Explain ETFs.", "No sensitive data."))
+				.andExpect(status().isBadGateway())
+				.andExpect(jsonPath("$.error").value("LLM_SIMULATED_RESULT"))
+				.andExpect(result -> assertThat(result.getResponse().getContentAsString())
+						.doesNotContain("improvedVersion", "problems"));
+		verifyNoInteractions(historyService);
 	}
 
 	@Test
@@ -92,7 +105,7 @@ class CheckControllerTest {
 	@Test
 	void acceptsComplianceRulesUpTo500000Characters() throws Exception {
 		given(llmClient.check(anyString(), anyString()))
-				.willReturn(new CheckResponse(true, List.of(), List.of(), "", true));
+				.willReturn(new CheckResponse(true, List.of(), List.of(), "", false));
 
 		postCheck(json("Explain ETFs.", "r".repeat(500_000))).andExpect(status().isOk());
 		postCheck(json("Explain ETFs.", "r".repeat(500_001)))
@@ -161,7 +174,7 @@ class CheckControllerTest {
 	@Test
 	void logsOnlyMetadata(CapturedOutput output) throws Exception {
 		given(llmClient.check(anyString(), anyString()))
-				.willReturn(new CheckResponse(true, List.of(), List.of(), "harmless", true));
+				.willReturn(new CheckResponse(true, List.of(), List.of(), "harmless", false));
 
 		postCheck(json("Note " + SECRET, "rules")).andExpect(status().isOk());
 

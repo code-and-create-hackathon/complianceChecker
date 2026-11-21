@@ -1,17 +1,6 @@
 // Shared by website and extension. Payloads: see API.md.
 import { API_URL, REQUEST_TIMEOUT_MS } from "./config.js";
-import { mockLlm } from "./mock_llm.js";
 import { validateRequest, validateResponse } from "./validate.js";
-
-/**
- * Demo mode without backend: on with ?mock=1, off with ?mock=0.
- * Without the parameter the backend is used.
- */
-export function isMockMode() {
-  const param = new URLSearchParams(window.location.search).get("mock");
-  if (param !== null) return param !== "0";
-  return false;
-}
 
 /**
  * @param {string} prompt
@@ -21,8 +10,6 @@ export function isMockMode() {
  */
 export async function requestLlm(prompt, compliance) {
   const request = validateRequest({ prompt, compliance });
-
-  if (isMockMode()) return validateResponse(await mockLlm(request.prompt, request.compliance));
 
   // The timeout covers both the connection and reading the response body.
   const signal = AbortSignal.timeout(REQUEST_TIMEOUT_MS);
@@ -43,6 +30,7 @@ export async function requestLlm(prompt, compliance) {
         LLM_AWS_ERROR: "Amazon Bedrock hat die Anfrage abgelehnt. Prüfe die Ausgabe im Terminal.",
         LLM_CONNECTION_ERROR: "Amazon Bedrock ist nicht erreichbar oder die Zugangsdaten sind ungültig.",
         LLM_NOT_CONNECTED: "Bitte zuerst die AWS-Zugangsdaten in der Nova-Konsole eingeben.",
+        LLM_SIMULATED_RESULT: "Ein Demo-Ergebnis wurde verworfen. Bitte starten Sie die Nova-Live-Version.",
         LLM_INVALID_RESPONSE: "Nova hat kein gültiges Prüfergebnis geliefert. Bitte erneut versuchen.",
       };
       throw new Error(errorPayload?.message || messages[errorPayload?.error] || `Der Prüfdienst hat mit Status ${res.status} geantwortet.`);

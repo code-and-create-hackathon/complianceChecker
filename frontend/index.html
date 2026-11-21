@@ -22,7 +22,7 @@
         </svg>
         <span class="brand-name">compliance<strong>Checker</strong></span>
       </a>
-      <span class="badge" id="demo-badge" title="Ohne Backend: Die Prüfung läuft lokal im Browser." hidden>Demo-Modus</span>
+      <span class="badge nova-status" id="nova-status" role="status" aria-live="polite">Nova wird geprüft …</span>
     </div>
   </header>
 
@@ -123,6 +123,10 @@
           </div>
         </div>
         <ul id="result-problems-visible" aria-label="Fundstellen"></ul>
+        <details>
+          <summary>Vollständiges Prüfergebnis</summary>
+          <pre id="message-raw"></pre>
+        </details>
         <div class="actions" id="safe-actions" hidden>
           <button type="button" class="button button-secondary" data-copy="prompt">
             <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="12" height="12" rx="2" /><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1" /></svg>
@@ -160,12 +164,11 @@
         Div 2: messages from the API response (hidden, for developers).
         Filled on every result but never shown, not even in demo mode.
         Access: #result-messages (data-is-safe), #result-problems,
-        #message-raw (full response as JSON) or the "compliance:result" event on document.
+        or the "compliance:result" event on document.
         The suggestion (#result-improved-text) lives in the visible status block above.
       -->
       <div id="result-messages" data-is-safe="" hidden>
         <ul id="result-problems"></ul>
-        <pre id="message-raw"></pre>
       </div>
 
       <p class="visually-hidden" id="sr-status" role="status" aria-live="polite"></p>
@@ -189,5 +192,6 @@
   </footer>
 
   <script type="module" src="js/web/site.js"></script>
+  <script type="module" src="js/web/nova_status.js"></script>
 </body>
 </html>

@@ -45,7 +45,9 @@ class BedrockNovaClient {
 
 	private final String configuredRegion;
 	private final String configuredModelId;
-	private Connection activeConnection;
+	private volatile Connection activeConnection;
+	private volatile String lastOutcome = "unverified";
+	private volatile Long lastLatencyMs;
 	private final SubmittedPromptRepository prompts;
 
 	BedrockNovaClient(@Value("${checker.bedrock-console.region:}") String region,
@@ -85,19 +87,53 @@ class BedrockNovaClient {
 	synchronized void activate(Connection connection) {
 		Connection previous = activeConnection;
 		activeConnection = connection;
+		lastOutcome = "unverified";
+		lastLatencyMs = null;
 		if (previous != null) previous.close();
 	}
 
 	synchronized CheckResponse check(String prompt, String rules) {
 		if (activeConnection == null) throw new LlmException("Nova credentials have not been entered");
 		prompts.save(new SubmittedPrompt(prompt));
-		return new BedrockLlmClient(activeConnection.client(), activeConnection.modelId()).check(prompt, rules);
+		long startNanos = System.nanoTime();
+		try {
+			CheckResponse result = new BedrockLlmClient(activeConnection.client(), activeConnection.modelId()).check(prompt, rules);
+			lastOutcome = "success";
+			return result;
+		} catch (RuntimeException ex) {
+			lastOutcome = "failed";
+			throw ex;
+		} finally {
+			lastLatencyMs = (System.nanoTime() - startNanos) / 1_000_000;
+		}
 	}
 
 	synchronized String sendPrompt(String prompt) throws IOException {
 		if (activeConnection == null) throw new LlmException("Nova credentials have not been entered");
 		prompts.save(new SubmittedPrompt(prompt));
-		return activeConnection.sendPrompt(prompt);
+		long startNanos = System.nanoTime();
+		try {
+			String result = activeConnection.sendPrompt(prompt);
+			lastOutcome = "success";
+			return result;
+		} catch (IOException | RuntimeException ex) {
+			lastOutcome = "failed";
+			throw ex;
+		} finally {
+			lastLatencyMs = (System.nanoTime() - startNanos) / 1_000_000;
+		}
+	}
+
+	Connection currentConnection() {
+		return activeConnection;
+	}
+
+	String lastOutcome() {
+		return lastOutcome;
+	}
+
+	Long lastLatencyMs() {
+		return lastLatencyMs;
 	}
 
 	@PreDestroy

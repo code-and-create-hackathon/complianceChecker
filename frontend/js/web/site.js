@@ -1,5 +1,5 @@
 // Website entry point (Stage 1): wires up the modules and runs the check.
-import { requestLlm, isMockMode } from "../shared/request_llm.js";
+import { requestLlm } from "../shared/request_llm.js";
 import { concatComplianceFiles } from "../shared/compliance_files.js";
 import { $ } from "./dom.js";
 import { state, canSubmit, setBusy } from "./state.js";
@@ -30,11 +30,11 @@ async function check(event) {
     renderError(error);
   } finally {
     setBusy(false);
+    document.dispatchEvent(new Event("compliance:check-complete"));
   }
 }
 
 function init() {
-  $("demo-badge").hidden = !isMockMode();
   initUpload();
   initPromptField(form);
   initCopy();

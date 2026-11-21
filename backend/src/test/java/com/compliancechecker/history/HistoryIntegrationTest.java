@@ -1,5 +1,8 @@
 package com.compliancechecker.history;
 
+import com.compliancechecker.llm.LlmClient;
+import com.compliancechecker.model.CheckResponse;
+import com.compliancechecker.service.SensitiveDataScanner;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -10,20 +13,22 @@ import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.BDDMockito.given;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * End to end in mock mode (no AWS) with an in-memory H2 database: POST /api/check, then GET /api/history, then a
- * look at the raw database rows. All test data is made up.
+ * End to end without AWS using a test-only live-shaped LLM response and an in-memory H2 database.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -42,9 +47,21 @@ class HistoryIntegrationTest {
 	@Autowired
 	private JdbcTemplate jdbcTemplate;
 
+	@Autowired
+	private SensitiveDataScanner scanner;
+
+	@MockitoBean
+	private LlmClient llmClient;
+
 	@BeforeEach
 	void emptyHistory() {
 		repository.deleteAll();
+		given(llmClient.check(anyString(), anyString())).willAnswer(invocation -> {
+			String prompt = invocation.getArgument(0);
+			var scan = scanner.scan(prompt);
+			return new CheckResponse(!scan.foundSensitiveData(), scan.problems(), scan.categories(),
+					scan.redactedText(), false, scanner.findings(prompt));
+		});
 	}
 
 	@Test
@@ -85,8 +102,7 @@ class HistoryIntegrationTest {
 	void checkStillWorksAsBefore() throws Exception {
 		check(SAFE_PROMPT)
 				.andExpect(jsonPath("$.isSafe").value(true))
-				.andExpect(jsonPath("$.improvedVersion").value(""))
-				.andExpect(jsonPath("$.simulated").doesNotExist());
+				.andExpect(jsonPath("$.improvedVersion").value(SAFE_PROMPT));
 	}
 
 	private org.springframework.test.web.servlet.ResultActions check(String prompt) throws Exception {

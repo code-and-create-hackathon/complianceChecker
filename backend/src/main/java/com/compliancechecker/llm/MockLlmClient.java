@@ -6,7 +6,6 @@ import com.compliancechecker.service.SensitiveDataScanner.ScanResult;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.stereotype.Component;
 
 /**
  * Simulated compliance check for local development and demos without AWS, based on {@link SensitiveDataScanner}.
@@ -14,7 +13,6 @@ import org.springframework.stereotype.Component;
  * <p>This is not a real compliance check: it ignores the uploaded compliance rules and only finds the scanner's
  * patterns. Every result is marked with {@code simulated = true}.
  */
-@Component
 @ConditionalOnProperty(name = "llm.provider", havingValue = "mock", matchIfMissing = true)
 public class MockLlmClient implements LlmClient {
 

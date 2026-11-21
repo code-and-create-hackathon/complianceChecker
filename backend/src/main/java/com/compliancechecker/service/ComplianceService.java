@@ -2,6 +2,7 @@ package com.compliancechecker.service;
 
 import com.compliancechecker.history.HistoryService;
 import com.compliancechecker.llm.LlmClient;
+import com.compliancechecker.llm.LlmException;
 import com.compliancechecker.model.CheckResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -26,6 +27,9 @@ public class ComplianceService {
 	public CheckResponse check(String prompt, String complianceRules) {
 		long startNanos = System.nanoTime();
 		CheckResponse result = llmClient.check(prompt, complianceRules);
+		if (result.simulated()) {
+			throw new LlmException("Simulated compliance result rejected by the live API.");
+		}
 		long latencyMs = (System.nanoTime() - startNanos) / 1_000_000;
 
 		log.info("check promptChars={} rulesChars={} safe={} categories={} model={} latencyMs={}",

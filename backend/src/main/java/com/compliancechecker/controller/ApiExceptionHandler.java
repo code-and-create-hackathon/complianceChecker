@@ -49,7 +49,10 @@ public class ApiExceptionHandler {
 	ResponseEntity<ErrorResponse> handleLlmFailure(LlmException ex) {
 		String code = "LLM_INVALID_RESPONSE";
 		String message = "Nova hat kein gültiges Prüfergebnis geliefert. Bitte erneut versuchen.";
-		if (ex.getCause() instanceof AwsServiceException aws) {
+		if ("Simulated compliance result rejected by the live API.".equals(ex.getMessage())) {
+			code = "LLM_SIMULATED_RESULT";
+			message = "Ein Demo-Ergebnis wurde verworfen. Bitte starten Sie die Nova-Live-Version.";
+		} else if (ex.getCause() instanceof AwsServiceException aws) {
 			if (aws.statusCode() == 401 || aws.statusCode() == 403) {
 				code = "LLM_ACCESS_DENIED";
 				message = "AWS verweigert den Nova-Zugriff. Prüfe die Bedrock-Berechtigung und Zugangsdaten.";
@@ -64,10 +67,12 @@ public class ApiExceptionHandler {
 			code = "LLM_NOT_CONNECTED";
 			message = "Bitte zuerst die AWS-Zugangsdaten in der Nova-Konsole eingeben.";
 		}
-		Throwable cause = ex.getCause();
-		String details = cause != null && cause.getMessage() != null ? cause.getMessage() : ex.getMessage();
-		if (details != null && !details.isBlank()) {
-			message += " Details: " + details;
+		if (!"LLM_SIMULATED_RESULT".equals(code)) {
+			Throwable cause = ex.getCause();
+			String details = cause != null && cause.getMessage() != null ? cause.getMessage() : ex.getMessage();
+			if (details != null && !details.isBlank()) {
+				message += " Details: " + details;
+			}
 		}
 		return respond(HttpStatus.BAD_GATEWAY, code, message, Map.of(), ex);
 	}

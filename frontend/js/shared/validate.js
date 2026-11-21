@@ -4,16 +4,11 @@
 export const PROMPT_MAX_LENGTH = 20_000;
 export const COMPLIANCE_MAX_LENGTH = 500_000;
 
-/** Severities as in the compliance file; only "low" (a notice) still allows sending. */
-export const SEVERITIES = ["critical", "high", "medium", "low"];
-export const NOTICE_SEVERITY = "low";
-
-const PROBLEM_FIELDS = ["ruleId", "severity", "message", "location"];
+const PROBLEM_FIELDS = ["ruleId", "category"];
 
 /** @typedef {{prompt: string, compliance: string}} CheckRequest */
 /**
- * @typedef {{ruleId: string, severity: "critical" | "high" | "medium" | "low",
- *            message: string, location: string}} Problem
+ * @typedef {{ruleId: string, category: string}} Problem
  */
 /** @typedef {{isSafe: boolean, problems: Problem[], improvedVersion: string}} CheckResponse */
 
@@ -50,12 +45,7 @@ function checkText(obj, field, maxLength, errors) {
   else if (charLength(value) > maxLength) errors.push(`"${field}" must be at most ${maxLength} characters long.`);
 }
 
-/** A problem blocks the prompt unless it is only a notice. */
-export function isBlocking(problem) {
-  return problem.severity !== NOTICE_SEVERITY;
-}
-
-/** Each problem: {ruleId, severity, message, location}; location may be "" (no specific passage). */
+/** Each problem identifies a violated compliance rule and its top-level category. */
 function checkProblem(problem, i, errors) {
   const at = `problems[${i}]`;
   if (!isPlainObject(problem)) {
@@ -63,15 +53,11 @@ function checkProblem(problem, i, errors) {
     return;
   }
   checkOnlyFields(problem, PROBLEM_FIELDS, errors, `${at}.`);
-  for (const field of ["ruleId", "message"]) {
+  for (const field of ["ruleId", "category"]) {
     if (typeof problem[field] !== "string" || problem[field].trim() === "") {
       errors.push(`"${at}.${field}" must be a non-empty string.`);
     }
   }
-  if (!SEVERITIES.includes(problem.severity)) {
-    errors.push(`"${at}.severity" must be one of ${SEVERITIES.map((s) => `"${s}"`).join(", ")}.`);
-  }
-  if (typeof problem.location !== "string") errors.push(`"${at}.location" must be a string ("" if none).`);
 }
 
 /**
@@ -113,8 +99,8 @@ export function validateResponse(payload) {
     const countBefore = errors.length;
     problems.forEach((problem, i) => checkProblem(problem, i, errors));
     const problemsValid = errors.length === countBefore;
-    if (problemsValid && typeof payload.isSafe === "boolean" && payload.isSafe !== !problems.some(isBlocking)) {
-      errors.push(`"isSafe" must be true exactly when no problem has severity "critical", "high" or "medium".`);
+    if (problemsValid && typeof payload.isSafe === "boolean" && payload.isSafe !== (problems.length === 0)) {
+      errors.push(`"isSafe" must be true exactly when "problems" is empty.`);
     }
   }
 

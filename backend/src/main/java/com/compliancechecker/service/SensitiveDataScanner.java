@@ -78,8 +78,7 @@ public class SensitiveDataScanner {
 						case ACCOUNT_DATA -> "R-02";
 						default -> "R-09";
 					};
-					String severity = rule.category() == ProblemCategory.INSIDER_INFO ? "medium" : "critical";
-					findings.add(new Finding(ruleId, severity, rule.problem(), matcher.group()));
+					findings.add(new Finding(ruleId, rule.category().name()));
 				}
 			}
 		}
