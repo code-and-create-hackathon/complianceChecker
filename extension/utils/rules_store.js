@@ -4,15 +4,13 @@ import { concatComplianceFiles } from '@shared/compliance_files.js';
 
 const KEY = 'complianceFiles';
 
-/** @typedef {import('@shared/compliance_files.js').ComplianceFile & {size: number}} StoredFile */
-
-/** @returns {Promise<StoredFile[]>} */
+/** @returns {Promise<import('@shared/compliance_files.js').LoadedFile[]>} */
 export async function getRuleFiles() {
   const data = await browser.storage.local.get(KEY);
   return data[KEY] ?? [];
 }
 
-/** @param {StoredFile[]} files */
+/** @param {import('@shared/compliance_files.js').LoadedFile[]} files */
 export async function setRuleFiles(files) {
   await browser.storage.local.set({ [KEY]: files });
 }

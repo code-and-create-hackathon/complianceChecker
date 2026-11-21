@@ -1,5 +1,6 @@
 // "Copy prompt" buttons (data-copy) in the result card.
 import { $, announce } from "./dom.js";
+import { state } from "./state.js";
 
 const COPY_FEEDBACK_MS = 1600;
 
@@ -29,7 +30,8 @@ export function initCopy() {
     const label = button.querySelector(".button-label");
     label.dataset.original ??= label.textContent;
 
-    const ok = await copyText($("prompt").value);
+    // The checked prompt, not whatever the field contains now.
+    const ok = await copyText(state.result?.request.prompt ?? $("prompt").value);
     label.textContent = ok ? "Copied" : "Copy failed";
     announce(label.textContent);
     setTimeout(() => {

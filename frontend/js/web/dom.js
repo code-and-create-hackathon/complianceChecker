@@ -1,20 +1,10 @@
-// Small DOM helpers shared by the website modules.
+// Small DOM helpers shared by the website modules. Pure formatting lives in ../shared/format.js.
 
 export const $ = (id) => document.getElementById(id);
 
-export const LOCALE = "en-GB";
-
-export const numberFormat = new Intl.NumberFormat(LOCALE);
-
-/** "1 rule" / "3 rules" */
-export function plural(count, one, many) {
-  return `${numberFormat.format(count)} ${count === 1 ? one : many}`;
-}
-
-const srStatus = $("sr-status");
-
 /** Message for screen readers (aria-live). */
 export function announce(message) {
+  const srStatus = $("sr-status");
   srStatus.textContent = "";
   requestAnimationFrame(() => {
     srStatus.textContent = message;

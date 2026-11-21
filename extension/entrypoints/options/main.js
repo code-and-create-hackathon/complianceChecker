@@ -1,11 +1,7 @@
 // Options page: upload, list and remove the compliance rules (stored in chrome.storage.local).
-import { readComplianceFiles, addWithinLimit } from '@shared/compliance_files.js';
-import { COMPLIANCE_MAX_LENGTH } from '@shared/validate.js';
+import { loadComplianceFiles, addWithinLimit, skippedMessage, ruleSummary } from '@shared/compliance_files.js';
+import { formatSize } from '@shared/format.js';
 import { getRuleFiles, setRuleFiles, onRuleFilesChanged } from '@/utils/rules_store.js';
-
-const ACCEPTED_FILE = /\.(md|markdown|txt)$/i;
-const numberFormat = new Intl.NumberFormat('en-US');
-const TOO_LONG = `rules exceed ${numberFormat.format(COMPLIANCE_MAX_LENGTH)} characters in total`;
 
 const $ = (id) => document.getElementById(id);
 const fileInput = $('file-input');
@@ -16,20 +12,12 @@ const status = $('status');
 const list = $('file-list');
 const empty = $('empty');
 
-function formatSize(bytes) {
-  return bytes < 1024 ? `${bytes} B` : `${(bytes / 1024).toFixed(1)} KB`;
-}
-
-function countRules(markdown) {
-  return markdown.split(/\r?\n/).filter((line) => /^\s*(?:[-*+]|\d+[.)])\s+\S/.test(line)).length;
-}
-
 function showMessage(text) {
   message.textContent = text;
   message.hidden = !text;
 }
 
-/** @param {import('@/utils/rules_store.js').StoredFile[]} files */
+/** @param {import('@shared/compliance_files.js').LoadedFile[]} files */
 function render(files) {
   list.replaceChildren(
     ...files.map((file) => {
@@ -40,8 +28,7 @@ function render(files) {
       name.textContent = file.name;
       const meta = document.createElement('div');
       meta.className = 'file-meta';
-      const rules = countRules(file.text);
-      meta.textContent = `${formatSize(file.size)} · ${rules ? `${numberFormat.format(rules)} rules` : 'rule set'}`;
+      meta.textContent = `${formatSize(file.size)} · ${ruleSummary(file.text)}`;
       info.append(name, meta);
 
       const remove = document.createElement('button');
@@ -67,25 +54,11 @@ function enqueue(task, arg) {
 }
 
 async function addFiles(picked) {
-  const skipped = [];
-  const candidates = picked.filter((file) => {
-    if (!ACCEPTED_FILE.test(file.name)) skipped.push(`${file.name} (not .md/.txt)`);
-    // UTF-8 needs at most 4 bytes per character: anything bigger is too long for sure.
-    else if (file.size > COMPLIANCE_MAX_LENGTH * 4) skipped.push(`${file.name} (${TOO_LONG})`);
-    else return true;
-    return false;
-  });
-
-  const { files, emptyNames } = await readComplianceFiles(candidates);
-  emptyNames.forEach((name) => skipped.push(`${name} (empty)`));
-  const sizes = new Map(candidates.map((file) => [file.name, file.size]));
-  const loaded = files.map((file) => ({ ...file, size: sizes.get(file.name) ?? 0 }));
-
-  const { files: merged, tooLong } = addWithinLimit(await getRuleFiles(), loaded);
-  tooLong.forEach((name) => skipped.push(`${name} (${TOO_LONG})`));
+  const { loaded, skipped } = await loadComplianceFiles(picked);
+  const { files: merged, skipped: tooLong } = addWithinLimit(await getRuleFiles(), loaded);
   await setRuleFiles(merged);
   render(merged);
-  showMessage(skipped.length ? `Not added: ${skipped.join(', ')}.` : '');
+  showMessage(skippedMessage([...skipped, ...tooLong]));
 }
 
 async function removeFile(name) {

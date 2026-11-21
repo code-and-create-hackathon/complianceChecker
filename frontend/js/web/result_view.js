@@ -1,7 +1,8 @@
 // Result panel: states (empty, loading, status, error), counts, findings list and the hidden messages.
 import { isMockMode } from "./mock_mode.js";
 import { isBlocking } from "../shared/validate.js";
-import { $, announce, plural } from "./dom.js";
+import { $, announce } from "./dom.js";
+import { plural } from "../shared/format.js";
 import { state } from "./state.js";
 
 const result = $("result");
@@ -121,20 +122,22 @@ export function showLoading() {
   announce("Checking.");
 }
 
-/** The improved prompt from the last result ("" if none). */
+/** The improved prompt from the result on screen ("" if none). */
 export function getSuggestion() {
-  return messageImproved.textContent;
+  return state.result?.response.improvedVersion.trim() ?? "";
 }
 
-/** Discards the last result as soon as the rules or the prompt change. */
+/** Discards the last result as soon as the rules or the prompt change (site.js handles running checks). */
 export function resetResult() {
   if (state.busy) return;
+  state.result = null;
   fillMessages(null);
   setState("empty");
 }
 
-/** @param {import("../shared/validate.js").CheckResponse} data */
-export function renderResult(data) {
+/** Shows `state.result`, which site.js sets before calling this. */
+export function renderResult() {
+  const data = state.result.response;
   const problems = fillMessages(data);
   const violations = problems.filter(isBlocking).length;
   showStatus(Boolean(data.isSafe), violations, problems.length - violations, Boolean(getSuggestion()));
