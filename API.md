@@ -98,6 +98,11 @@ Every error response (status `4xx` or `5xx`) has this body. All texts are fixed 
 | Status | `error`                  | When                                       |
 |--------|--------------------------|--------------------------------------------|
 | 400    | `INVALID_REQUEST`        | empty/missing/too long field, invalid JSON |
+| 401    | `UNAUTHORIZED`           | no or invalid/expired login token          |
+| 401    | `LOGIN_FAILED`           | unknown user or wrong admin code           |
+| 403    | `FORBIDDEN`              | a worker called an administrator endpoint  |
+| 409    | `NO_POLICY`              | check before any policy was published      |
+| 409    | `USERNAME_TAKEN`         | the user already exists                    |
 | 405    | `METHOD_NOT_ALLOWED`     | wrong HTTP method                          |
 | 415    | `UNSUPPORTED_MEDIA_TYPE` | `Content-Type` is not `application/json`   |
 | 502    | `LLM_UNAVAILABLE`        | the LLM could not be reached or failed     |
