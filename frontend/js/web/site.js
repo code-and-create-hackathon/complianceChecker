@@ -11,7 +11,7 @@ import { initUpload, setComplianceError, focusUpload, clearFiles } from "./uploa
 import { initPromptField, getPrompt, validatePrompt, focusPrompt } from "./prompt_field.js";
 import { initPromptHighlight } from "./prompt_highlight.js";
 import { initCopy } from "./copy.js";
-import { getToken, isAdmin, restoreSession, forgetSession } from "./company_accounts.js";
+import { getToken, isAdmin, restoreSession, forgetSession, demoLogin, loginFromHash } from "./company_accounts.js";
 import { initAccountView, showLogin, showAccount } from "./account_view.js";
 import { initPolicyView, showPolicyView, updatePublishButton } from "./policy_view.js";
 import { initTeamView, showTeam } from "./team_view.js";
@@ -90,6 +90,27 @@ async function initAccounts() {
   initAccountView({ onLoggedIn: enterApp, onLoggedOut: leaveApp });
   initPolicyView();
   initTeamView();
+  // QR demo (qr.html): ?demo=<key> logs in as the guest account for 3 minutes.
+  const demoKey = new URLSearchParams(location.search).get("demo");
+  if (demoKey) {
+    history.replaceState(null, "", location.pathname);
+    try {
+      enterApp(await demoLogin(demoKey));
+    } catch (error) {
+      showLogin(error.message || "This QR code has expired. Please scan the current one.");
+    }
+    return;
+  }
+  try {
+    const auto = await loginFromHash();
+    if (auto) {
+      enterApp(auto);
+      return;
+    }
+  } catch (error) {
+    showLogin(error.message);
+    return;
+  }
   try {
     const session = await restoreSession();
     if (session) enterApp(session);

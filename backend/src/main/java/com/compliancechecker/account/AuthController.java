@@ -32,6 +32,12 @@ public class AuthController {
 	public record LoginResponse(String token, String username, Role role) {
 	}
 
+	public record DemoLoginRequest(
+			@NotBlank(message = "must not be empty")
+			@Size(max = 100, message = "is too long (max. {max} characters)")
+			String key) {
+	}
+
 	private final AuthService authService;
 
 	public AuthController(AuthService authService) {
@@ -42,6 +48,21 @@ public class AuthController {
 	@PostMapping("/api/auth/login")
 	public LoginResponse login(@Valid @RequestBody LoginRequest request) {
 		AuthService.Login login = authService.login(request.username(), request.adminCode());
+		return new LoginResponse(login.token(), login.user().getUsername(), login.user().getRole());
+	}
+
+	/** QR demo: a key the presenter shows as a QR code (qr.html). Valid for 3 minutes. */
+	@AdminOnly
+	@PostMapping("/api/auth/demo-key")
+	public AuthService.DemoKey demoKey() {
+		return authService.createDemoKey();
+	}
+
+	/** QR demo: logs the scanner in as the guest account for 3 minutes. */
+	@PublicEndpoint
+	@PostMapping("/api/auth/demo-login")
+	public LoginResponse demoLogin(@Valid @RequestBody DemoLoginRequest request) {
+		AuthService.Login login = authService.demoLogin(request.key());
 		return new LoginResponse(login.token(), login.user().getUsername(), login.user().getRole());
 	}
 

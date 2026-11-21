@@ -39,7 +39,18 @@ public class AuthService {
 	private record Session(long userId, Instant expiresAt) {
 	}
 
+	/** A QR demo key, see {@link #createDemoKey()}. */
+	public record DemoKey(String key, Instant expiresAt) {
+	}
+
+	/** QR demo access: a key is valid this long, and so is each guest session opened with it. */
+	public static final Duration DEMO_DURATION = Duration.ofMinutes(3);
+
+	/** The account QR guests use. It cannot log in with the normal login, only with a valid demo key. */
+	public static final String DEMO_USERNAME = "guest";
+
 	private final Map<String, Session> sessions = new ConcurrentHashMap<>();
+	private final Map<String, Instant> demoKeys = new ConcurrentHashMap<>();
 	private final SecureRandom random = new SecureRandom();
 	private final UserRepository users;
 	private final byte[] adminCode;
@@ -70,8 +81,41 @@ public class AuthService {
 		if (user.isAdmin() && !adminCodeMatches(code)) {
 			throw loginFailed();
 		}
+		if (DEMO_USERNAME.equals(user.getUsername())) {
+			// QR guests only get time-limited sessions via demoLogin.
+			throw loginFailed();
+		}
+		return startSession(user, sessionDuration);
+	}
+
+	/** A new QR demo key, valid for {@link #DEMO_DURATION}. Admin only (checked by the controller). */
+	public DemoKey createDemoKey() {
+		Instant now = Instant.now(clock);
+		demoKeys.values().removeIf(expiresAt -> now.isAfter(expiresAt));
+		String key = newToken();
+		Instant expiresAt = now.plus(DEMO_DURATION);
+		demoKeys.put(key, expiresAt);
+		return new DemoKey(key, expiresAt);
+	}
+
+	/**
+	 * Logs in as the guest account with a valid demo key. The session ends after {@link #DEMO_DURATION}.
+	 * @throws ApiException 401 if the key is unknown or expired
+	 */
+	public Login demoLogin(String key) {
+		Instant expiresAt = key == null ? null : demoKeys.get(key);
+		if (expiresAt == null || Instant.now(clock).isAfter(expiresAt)) {
+			throw new ApiException(HttpStatus.UNAUTHORIZED, "DEMO_KEY_EXPIRED",
+					"This QR code has expired. Please scan the current one.");
+		}
+		AppUser guest = users.findByUsername(DEMO_USERNAME)
+				.orElseGet(() -> users.save(new AppUser(DEMO_USERNAME, Role.WORKER, Instant.now(clock))));
+		return startSession(guest, DEMO_DURATION);
+	}
+
+	private Login startSession(AppUser user, Duration duration) {
 		String token = newToken();
-		sessions.put(token, new Session(user.getId(), Instant.now(clock).plus(sessionDuration)));
+		sessions.put(token, new Session(user.getId(), Instant.now(clock).plus(duration)));
 		return new Login(token, user);
 	}
 

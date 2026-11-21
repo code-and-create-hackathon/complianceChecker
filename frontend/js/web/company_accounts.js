@@ -52,6 +52,30 @@ export async function login(username, adminCode) {
   return session;
 }
 
+/**
+ * Demo auto-login for the presenter: "#admin=<code>" in the address logs in as "admin". The hash never reaches
+ * the server and is removed from the address right away.
+ * @returns {Promise<Session | null>} null if the address has no admin code
+ */
+export async function loginFromHash() {
+  const code = new URLSearchParams(location.hash.slice(1)).get("admin");
+  if (!code) return null;
+  history.replaceState(null, "", location.pathname + location.search);
+  return login("admin", code);
+}
+
+/**
+ * QR demo: logs in as the guest account with the key from the QR code (session ends after 3 minutes).
+ * @param {string} key
+ * @returns {Promise<Session>}
+ */
+export async function demoLogin(key) {
+  const answer = await apiFetch("/api/auth/demo-login", { method: "POST", body: { key } });
+  const session = { token: answer.token, username: answer.username, role: answer.role };
+  saveSession(session);
+  return session;
+}
+
 /** Forgets the session locally right away and tells the backend (best effort). */
 export async function logout() {
   const token = getToken();
