@@ -1,24 +1,192 @@
 <!doctype html>
-<html lang="en">
+<html lang="de">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>complianceChecker</title>
+  <meta name="description" content="Prompts gegen interne Compliance-Regeln prüfen, bevor sie an ein KI-System gehen.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23155E63'/%3E%3Cpath d='M16 7.5 9.5 10v5.2c0 4.3 2.8 7.2 6.5 8.3 3.7-1.1 6.5-4 6.5-8.3V10z' fill='none' stroke='%23fff' stroke-width='2' stroke-linejoin='round'/%3E%3Cpath d='m13 15.5 2.2 2.2 4-4' fill='none' stroke='%23fff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <main>
-    <form id="check-form">
-      <label for="prompt">Prompt</label>
-      <textarea id="prompt" name="prompt" rows="8" required></textarea>
+  <header class="topbar">
+    <div class="container topbar-inner">
+      <a class="brand" href="./">
+        <svg class="brand-mark" viewBox="0 0 32 32" width="28" height="28" aria-hidden="true">
+          <rect width="32" height="32" rx="7" />
+          <path d="M16 7.5 9.5 10v5.2c0 4.3 2.8 7.2 6.5 8.3 3.7-1.1 6.5-4 6.5-8.3V10z" />
+          <path d="m13 15.5 2.2 2.2 4-4" />
+        </svg>
+        <span class="brand-name">compliance<strong>Checker</strong></span>
+      </a>
+      <span class="badge" id="demo-badge" title="Ohne Backend: Die Prüfung läuft lokal im Browser." hidden>Demo-Modus</span>
+    </div>
+  </header>
 
-      <label for="compliance">Compliance rules (Markdown)</label>
-      <input type="file" id="compliance" name="compliance" accept=".md,.markdown,.txt,text/markdown,text/plain" required>
+  <main class="container workspace">
+    <section class="card" aria-labelledby="page-title">
+      <h1 class="card-title" id="page-title">Prompt prüfen</h1>
 
-      <button type="submit">Check</button>
-    </form>
-    <!-- TODO: result -->
+      <form id="check-form" novalidate>
+        <div class="field">
+          <div class="field-label">
+            <span class="field-step" aria-hidden="true">1</span>
+            <label for="compliance">Compliance-Regeln</label>
+          </div>
+
+          <div class="dropzone" id="dropzone">
+            <input type="file" id="compliance" name="compliance" class="visually-hidden"
+                   accept=".md,.markdown,.txt,text/markdown,text/plain" multiple
+                   aria-describedby="compliance-hint compliance-error">
+            <span class="tile-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><path d="M12 15V4" /><path d="m7 9 5-5 5 5" /><path d="M4 15v4a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-4" /></svg>
+            </span>
+            <span class="dropzone-text">
+              <strong>Dateien auswählen oder hierher ziehen</strong>
+              <span id="compliance-hint">Eine oder mehrere .md- oder .txt-Dateien, insgesamt max. 500.000 Zeichen</span>
+            </span>
+          </div>
+
+          <div class="file-summary" id="compliance-summary" hidden>
+            <span id="compliance-status"></span>
+            <button type="button" class="link-button" id="compliance-clear">Alle entfernen</button>
+          </div>
+          <ul class="file-list" id="compliance-files"></ul>
+
+          <template id="file-chip-template">
+            <li class="file-chip">
+              <span class="tile-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" /><path d="M14 3v5h5" /><path d="M9 13h6M9 17h4" /></svg>
+              </span>
+              <span class="file-info">
+                <span class="file-name"></span>
+                <span class="file-meta"></span>
+              </span>
+              <button type="button" class="icon-button file-remove" aria-label="Datei entfernen">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12" /></svg>
+              </button>
+            </li>
+          </template>
+
+          <p class="field-error" id="compliance-error" hidden></p>
+        </div>
+
+        <div class="field">
+          <div class="field-label">
+            <span class="field-step" aria-hidden="true">2</span>
+            <label for="prompt">Prompt</label>
+          </div>
+          <textarea id="prompt" name="prompt" rows="9" aria-describedby="prompt-hint prompt-error"></textarea>
+          <div class="field-footer">
+            <span id="prompt-hint"><kbd id="shortcut-key">Strg</kbd> + <kbd>Enter</kbd> zum Prüfen</span>
+            <span id="char-count">0 Zeichen</span>
+          </div>
+          <p class="field-error" id="prompt-error" hidden></p>
+        </div>
+
+        <button type="submit" class="button button-primary button-block" id="check-submit">
+          <span class="button-label">Prüfen</span>
+        </button>
+      </form>
+    </section>
+
+    <section class="card card-result" id="result" aria-labelledby="result-title">
+      <h2 class="card-title" id="result-title">Ergebnis</h2>
+
+      <div class="state state-empty" data-state="empty">
+        <span class="state-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6z" /></svg>
+        </span>
+        <p class="state-text">Noch keine Prüfung.</p>
+      </div>
+
+      <div class="state" data-state="loading" hidden>
+        <div class="loader">
+          <span class="spinner" aria-hidden="true"></span>
+          <p>Wird geprüft …</p>
+        </div>
+      </div>
+
+      <!-- Div 1: status (visible) -->
+      <div class="state" data-state="status" hidden>
+        <div class="status" id="result-status">
+          <span class="status-icon" aria-hidden="true">
+            <svg class="icon-safe" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5" /></svg>
+            <svg class="icon-risk" viewBox="0 0 24 24"><path d="M12 8v5" /><path d="M12 16.5h.01" /></svg>
+          </span>
+          <div>
+            <p class="status-title" id="status-title"></p>
+            <p class="status-text" id="status-text"></p>
+          </div>
+        </div>
+        <div class="actions" id="safe-actions" hidden>
+          <button type="button" class="button button-secondary" data-copy="prompt">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="12" height="12" rx="2" /><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1" /></svg>
+            <span class="button-label">Prompt kopieren</span>
+          </button>
+        </div>
+        <!-- Unstyled for now: theming is up to the design side. -->
+        <!-- Shown only for an unsafe result with a non-empty suggestion; hidden again on any change. -->
+        <div id="suggestion-actions" hidden>
+          <div id="result-improved"><pre id="result-improved-text"></pre></div>
+          <div class="actions">
+            <button type="button" id="apply-suggestion">Vorschlag übernehmen</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="state" data-state="error" hidden>
+        <div class="status is-risk">
+          <span class="status-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12" /></svg>
+          </span>
+          <div>
+            <p class="status-title">Prüfung fehlgeschlagen</p>
+            <p class="status-text" id="error"></p>
+          </div>
+        </div>
+        <div class="actions">
+          <button type="submit" form="check-form" class="button button-secondary">
+            <span class="button-label">Erneut versuchen</span>
+          </button>
+        </div>
+      </div>
+
+      <!--
+        Div 2: messages from the API response (hidden, for developers).
+        Filled on every result but never shown, not even in demo mode.
+        Access: #result-messages (data-is-safe), #result-problems,
+        #message-raw (full response as JSON) or the "compliance:result" event on document.
+        The suggestion (#result-improved-text) lives in the visible status block above.
+      -->
+      <div id="result-messages" data-is-safe="" hidden>
+        <ul id="result-problems"></ul>
+        <pre id="message-raw"></pre>
+      </div>
+
+      <p class="visually-hidden" id="sr-status" role="status" aria-live="polite"></p>
+    </section>
   </main>
+
+  <section class="container how" aria-labelledby="how-title">
+    <h2 class="how-title" id="how-title">So funktioniert's</h2>
+    <ol class="how-steps">
+      <li><span class="how-number">1</span>Regeln hochladen</li>
+      <li><span class="how-number">2</span>Prompt prüfen</li>
+      <li><span class="how-number">3</span>Sicher senden</li>
+    </ol>
+  </section>
+
+  <footer class="footer">
+    <div class="container footer-inner">
+      <span>complianceChecker</span>
+      <span>MVP · Stage 1</span>
+    </div>
+  </footer>
+
   <script type="module" src="js/web/site.js"></script>
 </body>
 </html>

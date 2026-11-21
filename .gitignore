@@ -1,23 +1,26 @@
-# IDE
+# Secrets – never commit (see CONTRIBUTING.md)
+.env
+.env.*
+!.env.example
+
+# System / Editor
+.DS_Store
 .idea/
 *.iml
 *.iws
 *.ipr
 .vscode/
 
-# Build output
+# Dependencies & build output
+node_modules/
 target/
 backend/.mvn/wrapper/maven-wrapper.jar
 
-# Secrets – never commit (see CONTRIBUTING.md)
-.env
-.env.*
-
-# Local H2 database files
-data/
+# Local H2 history database (created when the backend runs from repo root or backend/)
+/data/
+/backend/data/
 *.mv.db
 *.trace.db
 
-# Logs & OS files
+# Logs
 *.log
-.DS_Store
