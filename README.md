@@ -220,8 +220,9 @@ npm run build   # → extension/.output/chrome-mv3
 
 To load a build manually: `chrome://extensions` → Developer mode → *Load unpacked* → `extension/.output/chrome-mv3`.
 
-On `chatgpt.com` the extension holds back every send (Enter or the send button), checks the prompt against the
-uploaded rules and only sends it if it is compliant. Blocked prompts show the problems and, if available, a
+On the supported AI chats – ChatGPT (`chatgpt.com`), Microsoft Copilot (`copilot.microsoft.com` / `copilot.com`),
+Gemini (`gemini.google.com`) and Claude (`claude.ai`) – the extension holds back every send (Enter or the send
+button), checks the prompt against the uploaded rules and only sends it if it is compliant. Blocked prompts show the problems and, if available, a
 suggested version. If the check cannot run, nothing is sent.
 
 **Backend:** the endpoint is defined once for website and extension in `frontend/js/shared/config.js`.
