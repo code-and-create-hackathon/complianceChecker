@@ -28,15 +28,15 @@ public class SensitiveDataScanner {
 	/** Order matters: when matches overlap, the rule listed first wins. */
 	private static final List<Rule> RULES = List.of(
 			// Sentence rules first, so such a sentence is removed as a whole, including anything inside it.
-			new Rule("R-04", Severity.CRITICAL, "Contains possible insider information.", "REMOVED",
-					sentenceContaining("profit warning|ad[ -]hoc (?:disclosure|announcement|notification|release)|Ad-hoc-Mitteilung"
+			Rule.sentence("R-04", Severity.CRITICAL, "Contains possible insider information.", "REMOVED",
+					"profit warning|ad[ -]hoc (?:disclosure|announcement|notification|release)|Ad-hoc-Mitteilung"
 							+ "|takeover (?:bid|offer)|not yet (?:public|announced)"
-							+ "|before (?:the )?announcement|insider\\w*|Gewinnwarnung|Übernahmeangebot")),
-			new Rule("R-03", Severity.CRITICAL, "Contains health data (special category of personal data).", "REMOVED",
-					sentenceContaining("sick leave|sick note|diagnosis|diagnosed|depression|burn-?out|cancer|pregnan\\w*"
-							+ "|disabilit\\w*|krankgeschrieben|Krankschreibung|Diagnose|schwanger\\w*")),
-			new Rule("R-09", Severity.MEDIUM, "Contains information marked as confidential.", "REMOVED",
-					sentenceContaining("confidential|internal only|not public|vertraulich\\w*|nur intern|nicht öffentlich")),
+							+ "|before (?:the )?announcement|insider\\w*|Gewinnwarnung|Übernahmeangebot"),
+			Rule.sentence("R-03", Severity.CRITICAL, "Contains health data (special category of personal data).", "REMOVED",
+					"sick leave|sick note|diagnosis|diagnosed|depression|burn-?out|cancer|pregnan\\w*"
+							+ "|disabilit\\w*|krankgeschrieben|Krankschreibung|Diagnose|schwanger\\w*"),
+			Rule.sentence("R-09", Severity.MEDIUM, "Contains information marked as confidential.", "REMOVED",
+					"confidential|internal only|not public|vertraulich\\w*|nur intern|nicht öffentlich"),
 			new Rule("R-05", Severity.CRITICAL, "Contains a password or access key.", "SECRET",
 					// Only the value; a value that already is a placeholder is left alone.
 					Pattern.compile("(?<=\\b(?:password|passwd|pwd|passwort|secret|token|api[_-]?key)\\s{0,2}[=:]\\s{0,2})"
@@ -71,16 +71,6 @@ public class SensitiveDataScanner {
 							+ "(?:GmbH & Co\\. KG|GmbH|AG|SE|KGaA|KG|OHG|UG|Ltd\\.?|Inc\\.?|LLC|plc)(?![\\wäöüß])")));
 
 	/**
-	 * The whole sentence around one of the keywords. A ".", "!" or "?" only ends a sentence if whitespace or the end
-	 * follows, so e-mail addresses and decimals do not split it.
-	 */
-	private static Pattern sentenceContaining(String keywords) {
-		String sentenceChar = "(?:[^.!?\\n]|[.!?](?=\\S))";
-		return Pattern.compile("(?:(?=\\S)" + sentenceChar + "*?)?\\b(?:" + keywords + ")\\b" + sentenceChar + "*[.!?]?",
-				Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CHARACTER_CLASS);
-	}
-
-	/**
 	 * @param problems     one problem per match, in the order of their position in the text
 	 * @param redactedText the text with every match replaced by a numbered placeholder like {@code [EMAIL_1]}
 	 */
@@ -106,7 +96,13 @@ public class SensitiveDataScanner {
 		for (Rule rule : RULES) {
 			Matcher matcher = rule.pattern().matcher(text);
 			while (matcher.find()) {
-				Match match = new Match(rule, matcher.start(), matcher.end(), matcher.group());
+				int start = matcher.start();
+				int end = matcher.end();
+				if (rule.wholeSentence()) {
+					start = sentenceStart(text, start);
+					end = sentenceEnd(text, end);
+				}
+				Match match = new Match(rule, start, end, text.substring(start, end));
 				if (rule.isMatch().test(match.text()) && matches.stream().noneMatch(match::overlaps)) {
 					matches.add(match);
 				}
@@ -114,6 +110,41 @@ public class SensitiveDataScanner {
 		}
 		matches.sort(Comparator.comparingInt(Match::start));
 		return matches;
+	}
+
+	/**
+	 * Start of the sentence that contains {@code index}, without leading whitespace. Done in code, not with a regex:
+	 * a regex with a repeated alternative overflows the stack on sentences of a few thousand characters.
+	 */
+	private static int sentenceStart(String text, int index) {
+		int start = index;
+		while (start > 0 && text.charAt(start - 1) != '\n' && !endsSentence(text, start - 1)) {
+			start--;
+		}
+		while (start < index && Character.isWhitespace(text.charAt(start))) {
+			start++;
+		}
+		return start;
+	}
+
+	/** End of the sentence that contains {@code index}: includes its closing ".", "!" or "?", not the line break. */
+	private static int sentenceEnd(String text, int index) {
+		for (int end = index; end < text.length(); end++) {
+			if (text.charAt(end) == '\n') {
+				return end;
+			}
+			if (endsSentence(text, end)) {
+				return end + 1;
+			}
+		}
+		return text.length();
+	}
+
+	/** A ".", "!" or "?" ends a sentence only if whitespace or the end follows, so "a.b@x.com" and "3.5" do not. */
+	private static boolean endsSentence(String text, int index) {
+		char c = text.charAt(index);
+		return (c == '.' || c == '!' || c == '?')
+				&& (index + 1 == text.length() || Character.isWhitespace(text.charAt(index + 1)));
 	}
 
 	/** Numbers placeholders per type in order of appearance: [EMAIL_1], [EMAIL_2], [IBAN_1] ... */
@@ -144,12 +175,27 @@ public class SensitiveDataScanner {
 		return sum % 10 == 0;
 	}
 
-	/** One kind of sensitive data and how it is reported; {@code isMatch} is an optional extra check. */
+	/**
+	 * One kind of sensitive data and how it is reported. {@code isMatch} is an optional extra check;
+	 * {@code wholeSentence} reports (and removes) the whole sentence around each match instead of just the match.
+	 */
 	private record Rule(String ruleId, Severity severity, String message, String placeholder, Pattern pattern,
-			Predicate<String> isMatch) {
+			Predicate<String> isMatch, boolean wholeSentence) {
 
 		Rule(String ruleId, Severity severity, String message, String placeholder, Pattern pattern) {
-			this(ruleId, severity, message, placeholder, pattern, match -> true);
+			this(ruleId, severity, message, placeholder, pattern, match -> true, false);
+		}
+
+		Rule(String ruleId, Severity severity, String message, String placeholder, Pattern pattern,
+				Predicate<String> isMatch) {
+			this(ruleId, severity, message, placeholder, pattern, isMatch, false);
+		}
+
+		/** A rule that removes the whole sentence around one of the keywords ({@code |}-separated regex parts). */
+		static Rule sentence(String ruleId, Severity severity, String message, String placeholder, String keywords) {
+			Pattern pattern = Pattern.compile("\\b(?:" + keywords + ")\\b",
+					Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CHARACTER_CLASS);
+			return new Rule(ruleId, severity, message, placeholder, pattern, match -> true, true);
 		}
 	}
 
