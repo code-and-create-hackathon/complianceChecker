@@ -6,8 +6,8 @@ import { state, canSubmit, setBusy } from "./state.js";
 import { setState, showLoading, renderResult, renderError } from "./result_view.js";
 import { initUpload, setComplianceError, focusUpload } from "./upload.js";
 import { initPromptField, getPrompt, validatePrompt, focusPrompt } from "./prompt_field.js";
+import { initPromptHighlight } from "./prompt_highlight.js";
 import { initCopy } from "./copy.js";
-import { initSuggestion } from "./suggestion.js";
 
 const form = $("check-form");
 
@@ -16,16 +16,17 @@ async function check(event) {
   if (!canSubmit()) return;
 
   const hasRules = state.complianceFiles.length > 0;
-  if (!hasRules) setComplianceError("Bitte laden Sie Ihre Compliance-Regeln hoch.");
+  if (!hasRules) setComplianceError("Please upload your compliance rules.");
   const hasPrompt = validatePrompt();
 
   if (!hasRules) return focusUpload();
   if (!hasPrompt) return focusPrompt();
 
+  const prompt = getPrompt();
   setBusy(true);
   showLoading();
   try {
-    renderResult(await requestLlm(getPrompt(), concatComplianceFiles(state.complianceFiles)));
+    renderResult(await requestLlm(prompt, concatComplianceFiles(state.complianceFiles)), prompt);
   } catch (error) {
     renderError(error);
   } finally {
@@ -37,8 +38,8 @@ function init() {
   $("demo-badge").hidden = !isMockMode();
   initUpload();
   initPromptField(form);
+  initPromptHighlight();
   initCopy();
-  initSuggestion();
   form.addEventListener("submit", check);
   setState("empty");
 }

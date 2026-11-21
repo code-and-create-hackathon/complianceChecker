@@ -1,5 +1,7 @@
-// "Prompt kopieren" buttons (data-copy) in the result card.
+// Copy buttons in the result panel: data-copy="prompt" copies the prompt,
+// data-copy="suggestion" the sanitised version.
 import { $, announce } from "./dom.js";
+import { getSuggestion } from "./result_view.js";
 
 const COPY_FEEDBACK_MS = 1600;
 
@@ -29,8 +31,9 @@ export function initCopy() {
     const label = button.querySelector(".button-label");
     label.dataset.original ??= label.textContent;
 
-    const ok = await copyText($("prompt").value);
-    label.textContent = ok ? "Kopiert" : "Kopieren fehlgeschlagen";
+    const text = button.dataset.copy === "suggestion" ? getSuggestion() : $("prompt").value;
+    const ok = await copyText(text);
+    label.textContent = ok ? "Copied" : "Copy failed";
     announce(label.textContent);
     setTimeout(() => {
       label.textContent = label.dataset.original;

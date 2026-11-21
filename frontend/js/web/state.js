@@ -22,7 +22,7 @@ export function canSubmit() {
 
 function updateSubmitButton() {
   submitButton.disabled = !canSubmit();
-  submitLabel.textContent = state.busy ? "Wird geprüft …" : "Prüfen";
+  submitLabel.textContent = state.busy ? "Checking …" : "Check";
 }
 
 export function setBusy(value) {
