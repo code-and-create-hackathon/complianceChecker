@@ -90,6 +90,8 @@
 .panel > .actions {
   display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 10px;
   margin: 24px 0 0; padding: 16px 24px; border-top: 1px solid var(--line-2);
+  /* Always visible at the bottom of the dialog, also while the content scrolls. */
+  position: sticky; bottom: 0; z-index: 1; background: var(--paper);
 }
 .panel > .actions:last-child { margin-bottom: 0; }
 .button {
