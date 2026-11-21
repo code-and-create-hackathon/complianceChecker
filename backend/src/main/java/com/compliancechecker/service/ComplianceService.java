@@ -33,7 +33,7 @@ public class ComplianceService {
 		long latencyMs = (System.nanoTime() - startNanos) / 1_000_000;
 
 		log.info("check promptChars={} rulesChars={} safe={} categories={} model={} latencyMs={}",
-				prompt.length(), complianceRules.length(), result.isSafe(), result.categories(),
+				prompt.length(), complianceRules.length(), result.isSafe(), result.findings().stream().map(finding -> finding.category()).distinct().toList(),
 				llmClient.modelId(), latencyMs);
 		historyService.record(prompt, result);
 		return result;

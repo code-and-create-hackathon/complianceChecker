@@ -122,10 +122,6 @@ svg {
   color: var(--text-muted);
 }
 
-.nova-status[data-state="ok"] { color: #176246; }
-.nova-status[data-state="error"] { color: #a52c20; }
-.nova-status[data-state="waiting"] { color: #745119; }
-
 /* ---------- Workspace ---------- */
 
 .workspace {
@@ -150,10 +146,219 @@ svg {
   font-weight: 600;
 }
 
-.card-result {
-  position: sticky;
-  top: 20px;
+/* ---------- Result panel (right box) ---------- */
+
+/*
+ * From 1100px: the left card keeps its old width and position (left edge aligned with the header,
+ * width as in the former 7fr/5fr grid of the 1120px container); the result panel is a fixed 560px
+ * to its right. Header and footer keep their 1120px container.
+ */
+@media (min-width: 1100px) {
+  .workspace.container {
+    max-width: none;
+    margin: 0;
+    padding-left: max(24px, calc((100% - 1120px) / 2 + 24px));
+    padding-right: 24px;
+    grid-template-columns: minmax(0, calc((1120px - 48px - 20px) * 7 / 12)) 560px;
+    justify-content: start;
+    align-content: start; /* row = height of the left card, even though .workspace fills the window */
+    align-items: stretch; /* the result panel takes that height */
+  }
 }
+
+.result-panel {
+  --rp-bg: #F3F5F7;
+  --rp-line: #DDE2E7;
+  --rp-crit: #B42318;
+  --rp-crit-bg: #FDEDEB;
+  --rp-warn: #9A5B07;
+  --rp-warn-bg: #FDF4E3;
+  --rp-action: #0F4C5C;
+
+  position: relative;
+  min-width: 0;
+  border-left: 1px solid var(--rp-line);
+  background: var(--rp-bg);
+  box-shadow: none;
+}
+
+/* Out of the flow: the panel takes the height of the left card and scrolls inside. */
+.result-scroll {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: auto;
+  padding: 24px 28px;
+}
+
+/* Result state: top part grows with its content and scrolls once it runs out of room;
+   the sanitised version below it always stays in view. */
+.state-result {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.result-top {
+  flex: 0 1 auto;
+  min-height: 0;
+  overflow: auto;
+}
+
+.result-bottom {
+  flex: none;
+  margin-top: 20px;
+}
+
+.result-bottom-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.result-bottom-head .result-subtitle { margin: 0; }
+
+.result-panel * { text-transform: none; box-shadow: none; }
+
+.result-panel .status.is-risk {
+  border-color: var(--rp-crit-bg);
+  background: var(--rp-crit-bg);
+}
+
+.result-panel .is-risk .status-icon { background: var(--rp-crit); }
+.result-panel .is-risk .status-title { color: var(--rp-crit); }
+
+.result-counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.count-badge {
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.count-badge.is-crit { background: var(--rp-crit-bg); color: var(--rp-crit); }
+.count-badge.is-warn { background: var(--rp-warn-bg); color: var(--rp-warn); }
+
+.result-block { margin-top: 20px; }
+
+.result-subtitle {
+  margin: 0 0 8px;
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
+
+.finding-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.finding {
+  display: flex;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--rp-line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.finding-num {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.finding-body {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.finding-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  font-size: 0.875rem;
+}
+
+.finding-rule { font-weight: 600; }
+
+.severity-badge {
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.finding.is-crit .finding-num,
+.finding.is-crit .severity-badge { background: var(--rp-crit-bg); color: var(--rp-crit); }
+.finding.is-warn .finding-num,
+.finding.is-warn .severity-badge { background: var(--rp-warn-bg); color: var(--rp-warn); }
+
+.finding-location {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.finding-message {
+  font-size: 0.875rem;
+  color: var(--text-muted);
+}
+
+/* Scroll box for the sanitised version. */
+.sanitized {
+  max-height: 160px;
+  margin: 0;
+  overflow: auto;
+  padding: 12px 14px;
+  border: 1px solid var(--rp-line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  font: inherit;
+}
+
+/* Passages the sanitised version changed compared to the prompt. */
+.sanitized .changed {
+  border-radius: 3px;
+  background: #E8F4EE;
+  color: #146C43;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.result-action {
+  display: inline-flex;
+  align-items: center;
+  width: auto;
+  height: 38px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: var(--rp-action);
+  color: #FFFFFF;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.result-action:hover { background: #0B3C49; }
 
 /* ---------- Form fields ---------- */
 
@@ -335,6 +540,55 @@ textarea:focus {
 }
 
 textarea[aria-invalid="true"] { border-color: var(--risk); }
+
+/*
+ * Highlights of the last check, drawn on a layer exactly behind the (transparent) textarea.
+ * Both use the same box, font, padding, border width, wrapping and scrollbar gutter, so every
+ * mark lies under its text. The layer's own text is invisible; only the marks show through.
+ */
+.prompt-field {
+  position: relative;
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.prompt-field textarea,
+.prompt-highlights {
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  scrollbar-gutter: stable;
+}
+
+.prompt-field textarea {
+  position: relative;
+  z-index: 1;
+  background: transparent;
+}
+
+.prompt-highlights {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  padding: 12px 14px;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  font-size: 0.9375rem;
+  line-height: 1.6;
+  color: transparent;
+  pointer-events: none;
+}
+
+.prompt-highlights mark {
+  border-radius: 3px;
+  color: transparent;
+  text-decoration-line: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
+}
+
+/* critical = red, high / medium / low = yellow */
+.prompt-highlights mark.is-crit { background: #F9D3CE; text-decoration-color: #B42318; }
+.prompt-highlights mark.is-warn { background: #F7E2B5; text-decoration-color: #9A5B07; }
 
 .field-footer {
   display: flex;
@@ -584,7 +838,21 @@ kbd {
 
 @media (max-width: 900px) {
   .workspace { grid-template-columns: minmax(0, 1fr); }
-  .card-result { position: static; }
+}
+
+/* Below 1100px the columns stack; the result panel gets its own height and still scrolls inside. */
+@media (max-width: 1099px) {
+  .workspace { grid-template-columns: minmax(0, 1fr); }
+
+  .result-panel {
+    border-top: 1px solid var(--rp-line);
+    border-left: 0;
+  }
+
+  .result-scroll {
+    position: static;
+    max-height: 600px;
+  }
 }
 
 /* Suggestion preview: unstyled for now (theming is up to design), but long prompts must wrap, not scroll sideways. */
@@ -592,8 +860,6 @@ kbd {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
-
-#message-raw {
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
+.nova-status[data-state="ok"] { color: #176246; }
+.nova-status[data-state="error"] { color: #a52c20; }
+.nova-status[data-state="waiting"] { color: #745119; }

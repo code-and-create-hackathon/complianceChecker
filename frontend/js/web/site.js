@@ -1,13 +1,13 @@
 // Website entry point (Stage 1): wires up the modules and runs the check.
 import { requestLlm } from "../shared/request_llm.js";
 import { concatComplianceFiles } from "../shared/compliance_files.js";
-import { $ } from "./dom.js";
-import { state, canSubmit, setBusy } from "./state.js";
-import { setState, showLoading, renderResult, renderError } from "./result_view.js";
+import { $, announce } from "./dom.js";
+import { state, canSubmit, setBusy, isCurrent } from "./state.js";
+import { setState, showLoading, renderResult, renderError, resetResult } from "./result_view.js";
 import { initUpload, setComplianceError, focusUpload } from "./upload.js";
 import { initPromptField, getPrompt, validatePrompt, focusPrompt } from "./prompt_field.js";
+import { initPromptHighlight } from "./prompt_highlight.js";
 import { initCopy } from "./copy.js";
-import { initSuggestion } from "./suggestion.js";
 
 const form = $("check-form");
 
@@ -16,29 +16,46 @@ async function check(event) {
   if (!canSubmit()) return;
 
   const hasRules = state.complianceFiles.length > 0;
-  if (!hasRules) setComplianceError("Bitte laden Sie Ihre Compliance-Regeln hoch.");
+  if (!hasRules) setComplianceError("Please upload your compliance rules.");
   const hasPrompt = validatePrompt();
 
   if (!hasRules) return focusUpload();
   if (!hasPrompt) return focusPrompt();
 
+  /** @type {import("./state.js").CheckRequest} */
+  const request = { prompt: getPrompt(), files: state.complianceFiles };
   setBusy(true);
   showLoading();
+  let response;
+  let failure;
   try {
-    renderResult(await requestLlm(getPrompt(), concatComplianceFiles(state.complianceFiles)));
+    response = await requestLlm(request.prompt, concatComplianceFiles(request.files));
   } catch (error) {
-    renderError(error);
+    failure = error;
   } finally {
-    setBusy(false);
     document.dispatchEvent(new Event("compliance:check-complete"));
   }
+  setBusy(false);
+
+  // Prompt or rules changed while the check ran: the answer belongs to something else, drop it.
+  if (!isCurrent(request, getPrompt())) {
+    resetResult();
+    announce("The prompt or the rules changed during the check. Please check again.");
+    return;
+  }
+  if (failure) {
+    renderError(failure);
+    return;
+  }
+  state.result = { request, response };
+  renderResult();
 }
 
 function init() {
   initUpload();
   initPromptField(form);
+  initPromptHighlight();
   initCopy();
-  initSuggestion();
   form.addEventListener("submit", check);
   setState("empty");
 }

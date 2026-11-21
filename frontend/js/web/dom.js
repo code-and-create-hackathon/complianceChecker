@@ -1,13 +1,10 @@
-// Small DOM helpers shared by the website modules.
+// Small DOM helpers shared by the website modules. Pure formatting lives in ../shared/format.js.
 
 export const $ = (id) => document.getElementById(id);
 
-export const numberFormat = new Intl.NumberFormat("de-DE");
-
-const srStatus = $("sr-status");
-
 /** Message for screen readers (aria-live). */
 export function announce(message) {
+  const srStatus = $("sr-status");
   srStatus.textContent = "";
   requestAnimationFrame(() => {
     srStatus.textContent = message;

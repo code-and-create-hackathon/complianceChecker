@@ -1,6 +1,7 @@
 package com.compliancechecker.controller;
 
 import com.compliancechecker.llm.LlmException;
+import com.compliancechecker.llm.InvalidNovaResponseException;
 import com.compliancechecker.model.ErrorResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -75,6 +76,15 @@ public class ApiExceptionHandler {
 			}
 		}
 		return respond(HttpStatus.BAD_GATEWAY, code, message, Map.of(), ex);
+	}
+
+	@ExceptionHandler(InvalidNovaResponseException.class)
+	ResponseEntity<Map<String, Object>> handleInvalidNovaResponse(InvalidNovaResponseException ex) {
+		String requestId = UUID.randomUUID().toString();
+		log.warn("requestId={} status=LLM_UNVERIFIED_RESPONSE exception={}", requestId, ex.getClass().getName());
+		return ResponseEntity.ok().cacheControl(org.springframework.http.CacheControl.noStore())
+				.body(Map.of("verification", "incomplete", "problems", java.util.List.of(),
+						"improvedVersion", ex.responseText(), "requestId", requestId));
 	}
 
 	/** Keeps the status of Spring's own errors (404, 405, 415, ...); everything else becomes 500. */

@@ -33,7 +33,9 @@ export async function requestLlm(prompt, compliance) {
         LLM_SIMULATED_RESULT: "Ein Demo-Ergebnis wurde verworfen. Bitte starten Sie die Nova-Live-Version.",
         LLM_INVALID_RESPONSE: "Nova hat kein gültiges Prüfergebnis geliefert. Bitte erneut versuchen.",
       };
-      throw new Error(errorPayload?.message || messages[errorPayload?.error] || `Der Prüfdienst hat mit Status ${res.status} geantwortet.`);
+      const error = new Error(errorPayload?.message || messages[errorPayload?.error] || `Der Prüfdienst hat mit Status ${res.status} geantwortet.`);
+      if (typeof errorPayload?.novaResponse === "string") error.novaResponse = errorPayload.novaResponse;
+      throw error;
     }
   } catch (error) {
     if (res && !res.ok) throw error;
@@ -46,5 +48,6 @@ export async function requestLlm(prompt, compliance) {
     throw new Error("Der Prüfdienst hat keine gültige JSON-Antwort gesendet.");
   }
   if (!res.ok) throw new Error(`Der Prüfdienst hat mit Status ${res.status} geantwortet.`);
+  if (payload?.verification === "incomplete" && typeof payload.improvedVersion === "string") return payload;
   return validateResponse(payload);
 }

@@ -4,7 +4,11 @@
 export const PROMPT_MAX_LENGTH = 20_000;
 export const COMPLIANCE_MAX_LENGTH = 500_000;
 
-const PROBLEM_FIELDS = ["ruleId", "category"];
+const PROBLEM_FIELDS = ["ruleId", "category", "severity", "message", "location"];
+
+export function isBlocking(problem) {
+  return problem.severity !== "low";
+}
 
 /** @typedef {{prompt: string, compliance: string}} CheckRequest */
 /**
@@ -53,10 +57,18 @@ function checkProblem(problem, i, errors) {
     return;
   }
   checkOnlyFields(problem, PROBLEM_FIELDS, errors, `${at}.`);
-  for (const field of ["ruleId", "category"]) {
+  const detailed = "severity" in problem || "message" in problem || "location" in problem;
+  for (const field of detailed ? ["ruleId", "severity", "message"] : ["ruleId", "category"]) {
     if (typeof problem[field] !== "string" || problem[field].trim() === "") {
       errors.push(`"${at}.${field}" must be a non-empty string.`);
     }
+  }
+  if (detailed && !["critical", "high", "medium", "low"].includes(problem.severity)) {
+    errors.push(`"${at}.severity" is invalid.`);
+  }
+  if (detailed && typeof problem.location !== "string") errors.push(`"${at}.location" must be a string.`);
+  if ("category" in problem && (typeof problem.category !== "string" || !problem.category.trim())) {
+    errors.push(`"${at}.category" must be a non-empty string.`);
   }
 }
 
@@ -99,8 +111,8 @@ export function validateResponse(payload) {
     const countBefore = errors.length;
     problems.forEach((problem, i) => checkProblem(problem, i, errors));
     const problemsValid = errors.length === countBefore;
-    if (problemsValid && typeof payload.isSafe === "boolean" && payload.isSafe !== (problems.length === 0)) {
-      errors.push(`"isSafe" must be true exactly when "problems" is empty.`);
+    if (problemsValid && typeof payload.isSafe === "boolean" && payload.isSafe !== !problems.some(isBlocking)) {
+      errors.push(`"isSafe" must match the blocking problems.`);
     }
   }
 
