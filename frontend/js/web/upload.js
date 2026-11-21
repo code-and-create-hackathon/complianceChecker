@@ -1,6 +1,6 @@
 // Compliance rules upload: dropzone, file chips, file checks.
-import { readComplianceFiles, concatComplianceFiles } from "../shared/compliance_files.js";
-import { COMPLIANCE_MAX_LENGTH, charLength } from "../shared/validate.js";
+import { readComplianceFiles, addWithinLimit } from "../shared/compliance_files.js";
+import { COMPLIANCE_MAX_LENGTH } from "../shared/validate.js";
 import { $, LOCALE, numberFormat, plural, setFieldError } from "./dom.js";
 import { state, startFileRead, endFileRead } from "./state.js";
 import { resetResult } from "./result_view.js";
@@ -86,22 +86,6 @@ function setFiles(files) {
 }
 
 // ---------- Loading ----------
-
-/**
- * Adds files to `current` in order (same name replaces the old file) as long as all rules
- * together stay within the API limit, measured exactly like validateRequest does.
- * @returns {{files: import("./state.js").LoadedFile[], tooLong: string[]}}
- */
-function addWithinLimit(current, loaded) {
-  let files = current;
-  const tooLong = [];
-  for (const file of loaded) {
-    const next = [...files.filter((f) => f.name !== file.name), file];
-    if (charLength(concatComplianceFiles(next)) > COMPLIANCE_MAX_LENGTH) tooLong.push(file.name);
-    else files = next;
-  }
-  return { files, tooLong };
-}
 
 /**
  * Adds the files to the loaded ones (same name replaces the old file).
