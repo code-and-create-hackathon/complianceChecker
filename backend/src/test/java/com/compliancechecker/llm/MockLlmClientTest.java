@@ -23,7 +23,7 @@ class MockLlmClientTest {
 		assertThat(result.isSafe()).isTrue();
 		assertThat(result.problems()).isEmpty();
 		assertThat(result.categories()).isEmpty();
-		assertThat(result.improvedVersion()).isEqualTo(prompt);
+		assertThat(result.improvedVersion()).isEmpty();
 		assertThat(result.simulated()).isTrue();
 	}
 

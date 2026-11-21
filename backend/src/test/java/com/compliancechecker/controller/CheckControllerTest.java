@@ -88,6 +88,17 @@ class CheckControllerTest {
 	}
 
 	@Test
+	void acceptsComplianceRulesUpTo500000Characters() throws Exception {
+		given(llmClient.check(anyString(), anyString()))
+				.willReturn(new CheckResponse(true, List.of(), List.of(), "", true));
+
+		postCheck(json("Explain ETFs.", "r".repeat(500_000))).andExpect(status().isOk());
+		postCheck(json("Explain ETFs.", "r".repeat(500_001)))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.fieldErrors.compliance").value("is too long (max. 500000 characters)"));
+	}
+
+	@Test
 	void rejectsMissingBody() throws Exception {
 		mockMvc.perform(post("/api/check").contentType(MediaType.APPLICATION_JSON))
 				.andExpect(status().isBadRequest())

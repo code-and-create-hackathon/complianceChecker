@@ -15,7 +15,7 @@ public record CheckRequest(
 		String prompt,
 
 		@NotBlank(message = "must not be empty")
-		@Size(max = 100_000, message = "is too long (max. {max} characters)")
+		@Size(max = 500_000, message = "is too long (max. {max} characters)")
 		String compliance) {
 
 	/** Shows only lengths, so an accidental log statement cannot leak content. */

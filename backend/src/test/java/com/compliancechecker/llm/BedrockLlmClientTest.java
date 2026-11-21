@@ -75,6 +75,27 @@ class BedrockLlmClientTest {
 	}
 
 	@Test
+	void safeResultHasNoSuggestion() {
+		givenBedrockAnswers(toolResult(true, List.of(), List.of(), "the original prompt again"));
+
+		CheckResponse result = llmClient.check(PROMPT, RULES);
+
+		assertThat(result.isSafe()).isTrue();
+		assertThat(result.problems()).isEmpty();
+		assertThat(result.improvedVersion()).isEmpty();
+	}
+
+	@Test
+	void unsafeResultWithoutProblemTextGetsGenericProblem() {
+		givenBedrockAnswers(toolResult(false, List.of(" "), List.of(), "Please summarise the account of [CUSTOMER_NAME]."));
+
+		CheckResponse result = llmClient.check(PROMPT, RULES);
+
+		assertThat(result.isSafe()).isFalse();
+		assertThat(result.problems()).containsExactly(BedrockLlmClient.UNSPECIFIED_PROBLEM);
+	}
+
+	@Test
 	void unknownCategoryBecomesOther() {
 		givenBedrockAnswers(toolResult(false, List.of("Something else"), List.of("SOMETHING_NEW"), "..."));
 

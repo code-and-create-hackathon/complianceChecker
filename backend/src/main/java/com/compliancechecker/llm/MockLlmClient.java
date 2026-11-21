@@ -30,8 +30,11 @@ public class MockLlmClient implements LlmClient {
 	@Override
 	public CheckResponse check(String prompt, String complianceRules) {
 		ScanResult scan = scanner.scan(prompt);
-		return new CheckResponse(!scan.foundSensitiveData(), scan.problems(), scan.categories(), scan.redactedText(),
-				true);
+		if (!scan.foundSensitiveData()) {
+			// API contract: "" means no suggestion.
+			return new CheckResponse(true, scan.problems(), scan.categories(), "", true);
+		}
+		return new CheckResponse(false, scan.problems(), scan.categories(), scan.redactedText(), true);
 	}
 
 	@Override

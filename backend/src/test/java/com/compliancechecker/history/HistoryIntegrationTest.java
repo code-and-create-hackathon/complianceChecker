@@ -85,7 +85,7 @@ class HistoryIntegrationTest {
 	void checkStillWorksAsBefore() throws Exception {
 		check(SAFE_PROMPT)
 				.andExpect(jsonPath("$.isSafe").value(true))
-				.andExpect(jsonPath("$.improvedVersion").value(SAFE_PROMPT))
+				.andExpect(jsonPath("$.improvedVersion").value(""))
 				.andExpect(jsonPath("$.simulated").value(true));
 	}
 

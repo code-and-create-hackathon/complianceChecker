@@ -44,6 +44,8 @@ public class BedrockLlmClient implements LlmClient {
 
 	private static final int MAX_OUTPUT_TOKENS = 4096;
 
+	static final String UNSPECIFIED_PROBLEM = "The check reported a compliance problem without details.";
+
 	private static final String SYSTEM_PROMPT = """
 			You are a compliance checker for a financial services company. Employees want to send the prompt \
 			inside <prompt_to_check> to an external AI system. Check it against the company's compliance rules \
@@ -58,7 +60,7 @@ public class BedrockLlmClient implements LlmClient {
 			the sensitive value itself.
 			- categories: the matching categories of all violations.
 			- improvedVersion: the prompt rewritten so it complies, with sensitive values replaced by placeholders \
-			such as [CUSTOMER_NAME] or [IBAN]. If the prompt is safe, return it unchanged.
+			such as [CUSTOMER_NAME] or [IBAN]. If the prompt is safe, return an empty string.
 
 			<compliance_rules>
 			%s
@@ -131,7 +133,10 @@ public class BedrockLlmClient implements LlmClient {
 		}
 		Map<String, Document> fields = input.asMap();
 		boolean isSafe = requireBoolean(fields, "isSafe");
-		List<String> problems = requireList(fields, "problems").stream().map(BedrockLlmClient::requireString).toList();
+		List<String> problems = requireList(fields, "problems").stream()
+				.map(BedrockLlmClient::requireString)
+				.filter(problem -> !problem.isBlank())
+				.toList();
 		List<ProblemCategory> categories = requireList(fields, "categories").stream()
 				.map(BedrockLlmClient::requireString)
 				.map(BedrockLlmClient::toCategory)
@@ -139,9 +144,13 @@ public class BedrockLlmClient implements LlmClient {
 				.toList();
 		String improvedVersion = requireString(fields.get("improvedVersion"));
 
-		// Fail closed: a result that lists problems is never safe, whatever the flag says.
-		boolean safe = isSafe && problems.isEmpty() && categories.isEmpty();
-		return new CheckResponse(safe, problems, categories, improvedVersion, false);
+		// Fail closed: a result that lists problems or categories is never safe, whatever the flag says.
+		if (isSafe && problems.isEmpty() && categories.isEmpty()) {
+			return new CheckResponse(true, List.of(), List.of(), "", false);
+		}
+		// API contract: isSafe is false exactly when problems is not empty.
+		List<String> reportedProblems = problems.isEmpty() ? List.of(UNSPECIFIED_PROBLEM) : problems;
+		return new CheckResponse(false, reportedProblems, categories, improvedVersion, false);
 	}
 
 	private static ProblemCategory toCategory(String value) {
