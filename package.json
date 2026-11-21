@@ -1,0 +1,16 @@
+{
+  "name": "compliancechecker",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Compliance gate for prompts sent to AI systems (MVP)",
+  "type": "module",
+  "scripts": {
+    "lint": "eslint frontend/js",
+    "lint:fix": "eslint frontend/js --fix"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.0.0",
+    "eslint": "^9.0.0",
+    "globals": "^15.0.0"
+  }
+}
