@@ -1,5 +1,4 @@
 // Result card: states (empty, loading, status, error) and the hidden messages.
-import { isMockMode } from "../shared/request_llm.js";
 import { $, announce } from "./dom.js";
 import { state } from "./state.js";
 
@@ -30,15 +29,20 @@ export function setState(name) {
 
 /** Div 2: store the messages from the API response. Always stays hidden. */
 function fillMessages(data) {
-  const problems = Array.isArray(data?.problems) ? data.problems.filter(Boolean) : [];
+  const problems = Array.isArray(data?.problems) ? data.problems : [];
   messages.dataset.isSafe = data ? String(Boolean(data.isSafe)) : "";
   messageProblems.replaceChildren(
     ...problems.map((problem) => {
       const li = document.createElement("li");
-      li.textContent = problem;
+      li.textContent = `${problem.ruleId} · ${problem.severity} · ${problem.message}${problem.location ? ` · ${problem.location}` : ""}`;
       return li;
     }),
   );
+  $("result-problems-visible").replaceChildren(...problems.map((problem) => {
+    const item = document.createElement("li");
+    item.textContent = `${problem.ruleId} (${problem.severity}): ${problem.message}${problem.location ? ` – ${problem.location}` : ""}`;
+    return item;
+  }));
   messageImproved.textContent = (data?.improvedVersion || "").trim();
   messageRaw.textContent = data ? JSON.stringify(data, null, 2) : "";
   return problems;
@@ -87,15 +91,12 @@ export function resetResult() {
 /** @param {import("../shared/validate.js").CheckResponse} data */
 export function renderResult(data) {
   const problems = fillMessages(data);
-  showStatus(Boolean(data.isSafe), problems.length, Boolean(getSuggestion()));
+  showStatus(Boolean(data.isSafe), problems.filter((problem) => problem.severity !== "low").length, Boolean(getSuggestion()));
   document.dispatchEvent(new CustomEvent("compliance:result", { detail: data }));
 }
 
 export function renderError(error) {
   let message = error.message || "Unbekannter Fehler.";
-  if (!isMockMode()) {
-    message += " Ohne Backend die Seite mit ?mock=1 öffnen, um den Demo-Modus zu nutzen.";
-  }
   errorText.textContent = message;
   setState("error");
   announce(`Prüfung fehlgeschlagen. ${message}`);

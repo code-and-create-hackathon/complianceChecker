@@ -4,14 +4,24 @@
 export const PROMPT_MAX_LENGTH = 20_000;
 export const COMPLIANCE_MAX_LENGTH = 500_000;
 
+/** Severities as in the compliance file; only "low" (a notice) still allows sending. */
+export const SEVERITIES = ["critical", "high", "medium", "low"];
+export const NOTICE_SEVERITY = "low";
+
+const PROBLEM_FIELDS = ["ruleId", "severity", "message", "location"];
+
 /** @typedef {{prompt: string, compliance: string}} CheckRequest */
-/** @typedef {{isSafe: boolean, problems: string[], improvedVersion: string}} CheckResponse */
+/**
+ * @typedef {{ruleId: string, severity: "critical" | "high" | "medium" | "low",
+ *            message: string, location: string}} Problem
+ */
+/** @typedef {{isSafe: boolean, problems: Problem[], improvedVersion: string}} CheckResponse */
 
 /** Thrown when a payload breaks the API contract. `errors` lists every violation. */
 export class ValidationError extends Error {
   /** @param {string} what @param {string[]} errors */
   constructor(what, errors) {
-    super(`Ungültige ${what}: ${errors.join(" ")}`);
+    super(`Invalid ${what}: ${errors.join(" ")}`);
     this.name = "ValidationError";
     this.errors = errors;
   }
@@ -21,9 +31,9 @@ function isPlainObject(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function checkOnlyFields(obj, allowed, errors) {
+function checkOnlyFields(obj, allowed, errors, prefix = "") {
   for (const key of Object.keys(obj)) {
-    if (!allowed.includes(key)) errors.push(`Unbekanntes Feld "${key}".`);
+    if (!allowed.includes(key)) errors.push(`Unknown field "${prefix}${key}".`);
   }
 }
 
@@ -34,10 +44,34 @@ export function charLength(value) {
 
 function checkText(obj, field, maxLength, errors) {
   const value = obj[field];
-  if (!(field in obj)) errors.push(`"${field}" fehlt.`);
-  else if (typeof value !== "string") errors.push(`"${field}" muss ein String sein.`);
-  else if (value.trim() === "") errors.push(`"${field}" darf nicht leer sein.`);
-  else if (charLength(value) > maxLength) errors.push(`"${field}" darf höchstens ${maxLength} Zeichen lang sein.`);
+  if (!(field in obj)) errors.push(`"${field}" is missing.`);
+  else if (typeof value !== "string") errors.push(`"${field}" must be a string.`);
+  else if (value.trim() === "") errors.push(`"${field}" must not be empty.`);
+  else if (charLength(value) > maxLength) errors.push(`"${field}" must be at most ${maxLength} characters long.`);
+}
+
+/** A problem blocks the prompt unless it is only a notice. */
+export function isBlocking(problem) {
+  return problem.severity !== NOTICE_SEVERITY;
+}
+
+/** Each problem: {ruleId, severity, message, location}; location may be "" (no specific passage). */
+function checkProblem(problem, i, errors) {
+  const at = `problems[${i}]`;
+  if (!isPlainObject(problem)) {
+    errors.push(`"${at}" must be an object with ${PROBLEM_FIELDS.join(", ")}.`);
+    return;
+  }
+  checkOnlyFields(problem, PROBLEM_FIELDS, errors, `${at}.`);
+  for (const field of ["ruleId", "message"]) {
+    if (typeof problem[field] !== "string" || problem[field].trim() === "") {
+      errors.push(`"${at}.${field}" must be a non-empty string.`);
+    }
+  }
+  if (!SEVERITIES.includes(problem.severity)) {
+    errors.push(`"${at}.severity" must be one of ${SEVERITIES.map((s) => `"${s}"`).join(", ")}.`);
+  }
+  if (typeof problem.location !== "string") errors.push(`"${at}.location" must be a string ("" if none).`);
 }
 
 /**
@@ -47,14 +81,14 @@ function checkText(obj, field, maxLength, errors) {
  * @throws {ValidationError}
  */
 export function validateRequest(payload) {
-  if (!isPlainObject(payload)) throw new ValidationError("Anfrage", ["Anfrage muss ein JSON-Objekt sein."]);
+  if (!isPlainObject(payload)) throw new ValidationError("request", ["The request must be a JSON object."]);
 
   const errors = [];
   checkOnlyFields(payload, ["prompt", "compliance"], errors);
   checkText(payload, "prompt", PROMPT_MAX_LENGTH, errors);
   checkText(payload, "compliance", COMPLIANCE_MAX_LENGTH, errors);
 
-  if (errors.length) throw new ValidationError("Anfrage", errors);
+  if (errors.length) throw new ValidationError("request", errors);
   return /** @type {CheckRequest} */ (payload);
 }
 
@@ -65,27 +99,27 @@ export function validateRequest(payload) {
  * @throws {ValidationError}
  */
 export function validateResponse(payload) {
-  if (!isPlainObject(payload)) throw new ValidationError("Antwort", ["Antwort muss ein JSON-Objekt sein."]);
+  if (!isPlainObject(payload)) throw new ValidationError("response", ["The response must be a JSON object."]);
 
   const errors = [];
   checkOnlyFields(payload, ["isSafe", "problems", "improvedVersion"], errors);
 
-  if (typeof payload.isSafe !== "boolean") errors.push(`"isSafe" muss ein Boolean sein.`);
+  if (typeof payload.isSafe !== "boolean") errors.push(`"isSafe" must be a boolean.`);
 
   const { problems } = payload;
   if (!Array.isArray(problems)) {
-    errors.push(`"problems" muss ein Array von Strings sein.`);
+    errors.push(`"problems" must be an array of objects.`);
   } else {
-    problems.forEach((p, i) => {
-      if (typeof p !== "string" || p.trim() === "") errors.push(`"problems[${i}]" muss ein nicht-leerer String sein.`);
-    });
-    if (typeof payload.isSafe === "boolean" && payload.isSafe !== (problems.length === 0)) {
-      errors.push(`"isSafe" muss genau dann true sein, wenn "problems" leer ist.`);
+    const countBefore = errors.length;
+    problems.forEach((problem, i) => checkProblem(problem, i, errors));
+    const problemsValid = errors.length === countBefore;
+    if (problemsValid && typeof payload.isSafe === "boolean" && payload.isSafe !== !problems.some(isBlocking)) {
+      errors.push(`"isSafe" must be true exactly when no problem has severity "critical", "high" or "medium".`);
     }
   }
 
-  if (typeof payload.improvedVersion !== "string") errors.push(`"improvedVersion" muss ein String sein ("" wenn keiner).`);
+  if (typeof payload.improvedVersion !== "string") errors.push(`"improvedVersion" must be a string ("" if none).`);
 
-  if (errors.length) throw new ValidationError("Antwort", errors);
+  if (errors.length) throw new ValidationError("response", errors);
   return /** @type {CheckResponse} */ (payload);
 }

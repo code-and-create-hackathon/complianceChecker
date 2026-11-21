@@ -18,5 +18,11 @@ public record CheckResponse(
 		List<String> problems,
 		List<ProblemCategory> categories,
 		String improvedVersion,
-		boolean simulated) {
+		boolean simulated,
+		List<Finding> findings) {
+
+	public CheckResponse(boolean isSafe, List<String> problems, List<ProblemCategory> categories,
+			String improvedVersion, boolean simulated) {
+		this(isSafe, problems, categories, improvedVersion, simulated, List.of());
+	}
 }

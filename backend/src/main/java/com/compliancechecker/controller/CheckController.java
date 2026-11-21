@@ -2,6 +2,7 @@ package com.compliancechecker.controller;
 
 import com.compliancechecker.model.CheckRequest;
 import com.compliancechecker.model.CheckResponse;
+import com.compliancechecker.model.ApiCheckResponse;
 import com.compliancechecker.service.ComplianceService;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -18,7 +19,8 @@ public class CheckController {
 	}
 
 	@PostMapping("/api/check")
-	public CheckResponse check(@Valid @RequestBody CheckRequest request) {
-		return complianceService.check(request.prompt(), request.compliance());
+	public ApiCheckResponse check(@Valid @RequestBody CheckRequest request) {
+		CheckResponse result = complianceService.check(request.prompt(), request.compliance());
+		return new ApiCheckResponse(result.isSafe(), result.findings(), result.improvedVersion());
 	}
 }

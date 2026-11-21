@@ -86,7 +86,7 @@ class HistoryIntegrationTest {
 		check(SAFE_PROMPT)
 				.andExpect(jsonPath("$.isSafe").value(true))
 				.andExpect(jsonPath("$.improvedVersion").value(""))
-				.andExpect(jsonPath("$.simulated").value(true));
+				.andExpect(jsonPath("$.simulated").doesNotExist());
 	}
 
 	private org.springframework.test.web.servlet.ResultActions check(String prompt) throws Exception {

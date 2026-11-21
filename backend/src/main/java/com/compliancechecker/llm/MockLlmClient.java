@@ -34,7 +34,8 @@ public class MockLlmClient implements LlmClient {
 			// API contract: "" means no suggestion.
 			return new CheckResponse(true, scan.problems(), scan.categories(), "", true);
 		}
-		return new CheckResponse(false, scan.problems(), scan.categories(), scan.redactedText(), true);
+		return new CheckResponse(false, scan.problems(), scan.categories(), scan.redactedText(), true,
+				scanner.findings(prompt));
 	}
 
 	@Override

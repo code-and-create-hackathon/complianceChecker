@@ -13,7 +13,7 @@ import java.time.Instant;
 import java.util.List;
 
 /**
- * Stores and lists past checks. Never stores the original prompt: only time, result, categories and the
+ * Stores and lists past checks. This history stores time, result, categories and the
  * sanitized prompt, and the sanitized prompt only if it passes {@link #storableImprovedVersion}.
  */
 @Service

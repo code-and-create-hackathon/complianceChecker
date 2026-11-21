@@ -4,6 +4,7 @@ import com.compliancechecker.history.HistoryService;
 import com.compliancechecker.llm.LlmClient;
 import com.compliancechecker.llm.LlmException;
 import com.compliancechecker.model.CheckResponse;
+import com.compliancechecker.model.Finding;
 import com.compliancechecker.model.ProblemCategory;
 import com.compliancechecker.service.ComplianceService;
 import org.junit.jupiter.api.Test;
@@ -50,15 +51,16 @@ class CheckControllerTest {
 	@Test
 	void returnsResultInApiShape() throws Exception {
 		given(llmClient.check(anyString(), anyString())).willReturn(new CheckResponse(false,
-				List.of("Contains an IBAN"), List.of(ProblemCategory.ACCOUNT_DATA), "Transfer from [IBAN]", true));
+				List.of("Contains an IBAN"), List.of(ProblemCategory.ACCOUNT_DATA), "Transfer from [IBAN]", true,
+				List.of(new Finding("R-02", "critical", "Contains an IBAN", SECRET))));
 
 		postCheck(json("Transfer from " + SECRET, "# Rules\nNo IBANs."))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.isSafe").value(false))
-				.andExpect(jsonPath("$.problems[0]").value("Contains an IBAN"))
-				.andExpect(jsonPath("$.categories[0]").value("ACCOUNT_DATA"))
+				.andExpect(jsonPath("$.problems[0].ruleId").value("R-02"))
+				.andExpect(jsonPath("$.problems[0].location").value(SECRET))
 				.andExpect(jsonPath("$.improvedVersion").value("Transfer from [IBAN]"))
-				.andExpect(jsonPath("$.simulated").value(true));
+				.andExpect(jsonPath("$.simulated").doesNotExist());
 	}
 
 	@Test
@@ -136,12 +138,24 @@ class CheckControllerTest {
 
 		String body = postCheck(json("Transfer from " + SECRET, "rules"))
 				.andExpect(status().isBadGateway())
-				.andExpect(jsonPath("$.error").value("LLM_UNAVAILABLE"))
+				.andExpect(jsonPath("$.error").value("LLM_INVALID_RESPONSE"))
 				.andExpect(jsonPath("$.requestId").isNotEmpty())
 				.andReturn().getResponse().getContentAsString();
 
 		assertThat(body).doesNotContain(SECRET);
 		assertThat(output.getAll()).doesNotContain(SECRET);
+	}
+
+	@Test
+	void reportsBedrockAccessDeniedWithAwsMessage() throws Exception {
+		var aws = software.amazon.awssdk.services.bedrockruntime.model.AccessDeniedException.builder()
+				.message(SECRET).statusCode(403).build();
+		given(llmClient.check(anyString(), anyString())).willThrow(new LlmException("Bedrock failed", aws));
+		String body = postCheck(json("Example prompt", "rules"))
+				.andExpect(status().isBadGateway())
+				.andExpect(jsonPath("$.error").value("LLM_ACCESS_DENIED"))
+				.andReturn().getResponse().getContentAsString();
+		assertThat(body).contains(SECRET);
 	}
 
 	@Test

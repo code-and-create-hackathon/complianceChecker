@@ -1,7 +1,7 @@
 package com.compliancechecker.model;
 
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.Size;
+import org.hibernate.validator.constraints.CodePointLength;
 
 /**
  * Request body of {@code POST /api/check}, see API.md.
@@ -11,11 +11,11 @@ import jakarta.validation.constraints.Size;
 public record CheckRequest(
 
 		@NotBlank(message = "must not be empty")
-		@Size(max = 20_000, message = "is too long (max. {max} characters)")
+		@CodePointLength(max = 20_000, message = "is too long (max. {max} characters)")
 		String prompt,
 
 		@NotBlank(message = "must not be empty")
-		@Size(max = 500_000, message = "is too long (max. {max} characters)")
+		@CodePointLength(max = 500_000, message = "is too long (max. {max} characters)")
 		String compliance) {
 
 	/** Shows only lengths, so an accidental log statement cannot leak content. */

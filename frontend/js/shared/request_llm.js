@@ -5,12 +5,12 @@ import { validateRequest, validateResponse } from "./validate.js";
 
 /**
  * Demo mode without backend: on with ?mock=1, off with ?mock=0.
- * Without the parameter it is on automatically on localhost / 127.0.0.1 (e.g. Live Server).
+ * Without the parameter the backend is used.
  */
 export function isMockMode() {
   const param = new URLSearchParams(window.location.search).get("mock");
   if (param !== null) return param !== "0";
-  return ["localhost", "127.0.0.1"].includes(window.location.hostname);
+  return false;
 }
 
 /**
@@ -36,7 +36,19 @@ export async function requestLlm(prompt, compliance) {
       signal,
     });
     if (res.ok) payload = await res.json();
+    else {
+      const errorPayload = await res.json().catch(() => null);
+      const messages = {
+        LLM_ACCESS_DENIED: "AWS verweigert den Nova-Zugriff. Prüfe die Bedrock-Berechtigung und Zugangsdaten.",
+        LLM_AWS_ERROR: "Amazon Bedrock hat die Anfrage abgelehnt. Prüfe die Ausgabe im Terminal.",
+        LLM_CONNECTION_ERROR: "Amazon Bedrock ist nicht erreichbar oder die Zugangsdaten sind ungültig.",
+        LLM_NOT_CONNECTED: "Bitte zuerst die AWS-Zugangsdaten in der Nova-Konsole eingeben.",
+        LLM_INVALID_RESPONSE: "Nova hat kein gültiges Prüfergebnis geliefert. Bitte erneut versuchen.",
+      };
+      throw new Error(errorPayload?.message || messages[errorPayload?.error] || `Der Prüfdienst hat mit Status ${res.status} geantwortet.`);
+    }
   } catch (error) {
+    if (res && !res.ok) throw error;
     if (error.name === "TimeoutError") {
       throw new Error(
         `Zeitüberschreitung: Der Prüfdienst hat nicht innerhalb von ${REQUEST_TIMEOUT_MS / 1000} Sekunden geantwortet.`,

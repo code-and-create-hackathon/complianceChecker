@@ -1,6 +1,7 @@
 package com.compliancechecker.service;
 
 import com.compliancechecker.model.ProblemCategory;
+import com.compliancechecker.model.Finding;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
@@ -63,6 +64,26 @@ public class SensitiveDataScanner {
 			}
 		}
 		return new ScanResult(redactedText, List.copyOf(problems), List.copyOf(categories));
+	}
+
+	/** Demo findings refer to the fictional Musterfinanz guide. */
+	public List<Finding> findings(String text) {
+		List<Finding> findings = new ArrayList<>();
+		for (Rule rule : RULES) {
+			Matcher matcher = rule.pattern().matcher(text);
+			while (matcher.find()) {
+				if (rule.isMatch().test(matcher.group())) {
+					String ruleId = switch (rule.category()) {
+						case CUSTOMER_DATA -> "R-01";
+						case ACCOUNT_DATA -> "R-02";
+						default -> "R-09";
+					};
+					String severity = rule.category() == ProblemCategory.INSIDER_INFO ? "medium" : "critical";
+					findings.add(new Finding(ruleId, severity, rule.problem(), matcher.group()));
+				}
+			}
+		}
+		return List.copyOf(findings);
 	}
 
 	/** Luhn checksum used by all payment card numbers; filters out random digit sequences. */
