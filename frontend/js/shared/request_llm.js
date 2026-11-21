@@ -7,12 +7,13 @@ import { validateRequest, validateResponse } from "./validate.js";
 /**
  * @param {string} prompt
  * @param {string} compliance
- * @param {{mock?: boolean}} [options]  mock: use the local demo instead of the backend (API_URL).
+ * @param {{mock?: boolean, apiUrl?: string}} [options]  mock: use the local demo instead of the backend.
+ *   apiUrl: endpoint to call, default API_URL (relative: website); the extension passes an absolute URL.
  *   The caller decides: the website from its URL (web/mock_mode.js), the extension from BACKEND_ORIGIN.
  * @returns {Promise<import("./validate.js").CheckResponse>}
  * @throws {import("./validate.js").ValidationError} if request or response breaks the contract
  */
-export async function requestLlm(prompt, compliance, { mock = false } = {}) {
+export async function requestLlm(prompt, compliance, { mock = false, apiUrl = API_URL } = {}) {
   const request = validateRequest({ prompt, compliance });
 
   if (mock) return validateResponse(await mockLlm(request.prompt, request.compliance));
@@ -22,13 +23,14 @@ export async function requestLlm(prompt, compliance, { mock = false } = {}) {
   let res;
   let payload;
   try {
-    res = await fetch(API_URL, {
+    res = await fetch(apiUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(request),
       signal,
     });
-    if (res.ok) payload = await res.json();
+    // Error bodies carry a fixed, user-safe "message" (e.g. "AWS credentials are missing ...").
+    payload = res.ok ? await res.json() : await res.json().catch(() => null);
   } catch (error) {
     if (error.name === "TimeoutError") {
       throw new Error(
@@ -38,6 +40,9 @@ export async function requestLlm(prompt, compliance, { mock = false } = {}) {
     if (!res) throw new Error("The check service is not reachable.");
     throw new Error("The check service did not send a valid JSON response.");
   }
-  if (!res.ok) throw new Error(`The check service answered with status ${res.status}.`);
+  if (!res.ok) {
+    const reason = typeof payload?.message === "string" ? payload.message : "The check service reported an error.";
+    throw new Error(`${reason} (status ${res.status})`);
+  }
   return validateResponse(payload);
 }

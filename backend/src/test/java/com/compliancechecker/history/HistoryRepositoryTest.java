@@ -33,21 +33,19 @@ class HistoryRepositoryTest {
 	}
 
 	@Test
-	void storesFindingsAndEmptyText() {
+	void storesFindings() {
 		repository.save(new HistoryEntry(Instant.parse("2026-11-21T08:00:00Z"), false,
-				List.of(new Finding("R-01", Severity.CRITICAL), new Finding("R-09", Severity.MEDIUM)), ""));
-		repository.save(new HistoryEntry(Instant.parse("2026-11-21T09:00:00Z"), true, List.of(), ""));
+				List.of(new Finding("R-01", Severity.CRITICAL), new Finding("R-09", Severity.MEDIUM))));
+		repository.save(new HistoryEntry(Instant.parse("2026-11-21T09:00:00Z"), true, List.of()));
 
 		List<HistoryEntry> entries = repository.findTop100ByOrderByCreatedAtDescIdDesc();
 
 		assertThat(entries.get(0).getFindings()).isEmpty();
 		assertThat(entries.get(1).getFindings())
 				.containsExactly(new Finding("R-01", Severity.CRITICAL), new Finding("R-09", Severity.MEDIUM));
-		assertThat(entries.get(1).getImprovedVersion()).isEmpty();
 	}
 
 	private static HistoryEntry entry(String createdAt) {
-		return new HistoryEntry(Instant.parse(createdAt), false, List.of(new Finding("R-02", Severity.CRITICAL)),
-				"text");
+		return new HistoryEntry(Instant.parse(createdAt), false, List.of(new Finding("R-02", Severity.CRITICAL)));
 	}
 }

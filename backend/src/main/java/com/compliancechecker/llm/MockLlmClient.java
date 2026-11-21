@@ -9,13 +9,14 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 /**
- * Simulated compliance check for local development and demos without AWS, based on {@link SensitiveDataScanner}.
+ * Simulated compliance check for offline demos without AWS, based on {@link SensitiveDataScanner}. Only active when
+ * explicitly selected with {@code llm.provider=mock} (env {@code LLM_PROVIDER=mock}); the default is Bedrock.
  *
  * <p>This is not a real compliance check: it ignores the uploaded compliance rules and only finds the scanner's
  * patterns. API.md allows no extra field to mark this, so it is stated in the log and the README.
  */
 @Component
-@ConditionalOnProperty(name = "llm.provider", havingValue = "mock", matchIfMissing = true)
+@ConditionalOnProperty(name = "llm.provider", havingValue = "mock")
 public class MockLlmClient implements LlmClient {
 
 	private static final Logger log = LoggerFactory.getLogger(MockLlmClient.class);

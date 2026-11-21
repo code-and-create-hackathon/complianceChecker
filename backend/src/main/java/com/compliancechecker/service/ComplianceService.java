@@ -32,7 +32,7 @@ public class ComplianceService {
 		log.info("check promptChars={} rulesChars={} safe={} problems={} model={} latencyMs={}",
 				prompt.length(), complianceRules.length(), result.isSafe(), result.problems(),
 				llmClient.modelId(), latencyMs);
-		historyService.record(prompt, result);
+		historyService.record(result);
 		return result;
 	}
 }

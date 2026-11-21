@@ -3,72 +3,121 @@ package com.compliancechecker.llm;
 import com.compliancechecker.model.CheckResponse;
 import com.compliancechecker.model.Problem;
 import com.compliancechecker.model.Severity;
+import com.compliancechecker.service.SensitiveDataScanner;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.ArgumentCaptor;
+import software.amazon.awssdk.awscore.exception.AwsErrorDetails;
 import software.amazon.awssdk.core.document.Document;
+import software.amazon.awssdk.core.exception.ApiCallTimeoutException;
 import software.amazon.awssdk.core.exception.SdkClientException;
+import software.amazon.awssdk.core.exception.SdkException;
 import software.amazon.awssdk.services.bedrockruntime.BedrockRuntimeClient;
+import software.amazon.awssdk.services.bedrockruntime.model.AccessDeniedException;
+import software.amazon.awssdk.services.bedrockruntime.model.BedrockRuntimeException;
 import software.amazon.awssdk.services.bedrockruntime.model.ContentBlock;
 import software.amazon.awssdk.services.bedrockruntime.model.ConversationRole;
 import software.amazon.awssdk.services.bedrockruntime.model.ConverseOutput;
 import software.amazon.awssdk.services.bedrockruntime.model.ConverseRequest;
 import software.amazon.awssdk.services.bedrockruntime.model.ConverseResponse;
 import software.amazon.awssdk.services.bedrockruntime.model.Message;
+import software.amazon.awssdk.services.bedrockruntime.model.ResourceNotFoundException;
 import software.amazon.awssdk.services.bedrockruntime.model.StopReason;
+import software.amazon.awssdk.services.bedrockruntime.model.ThrottlingException;
 import software.amazon.awssdk.services.bedrockruntime.model.ToolUseBlock;
 import software.amazon.awssdk.services.bedrockruntime.model.ValidationException;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 /** Uses a mocked Bedrock client; no AWS access, no costs. All test data is made up. */
 class BedrockLlmClientTest {
 
 	private static final String MODEL_ID = "eu.amazon.nova-2-lite-v1:0";
-	private static final String PROMPT = "Please summarise the account of Erika Mustermann, IBAN DE89370400440532013000.";
+	/** Nothing in here is found by the local rules, so the model sees the text unchanged. */
+	private static final String PROMPT = "Please summarise the account of Erika Mustermann.";
+	private static final String PROMPT_WITH_IBAN = PROMPT.replace(".", ", IBAN DE89 3704 0044 0532 0130 00.");
 	private static final String RULES = "# Rules\n### R-01 Customer names (CRITICAL)\n### R-02 IBANs (CRITICAL)";
 
 	private final BedrockRuntimeClient bedrock = mock(BedrockRuntimeClient.class);
-	private final BedrockLlmClient llmClient = new BedrockLlmClient(bedrock, MODEL_ID);
+	private final BedrockLlmClient llmClient = new BedrockLlmClient(bedrock, new SensitiveDataScanner(), MODEL_ID);
 
 	@Test
 	void mapsToolResultToApiMdProblems() {
-		givenBedrockAnswers(false,
-				List.of(problem("R-01", "critical", "Contains a customer name.", "Erika Mustermann"),
-						problem("R-02", "critical", "Contains an IBAN.", "DE89370400440532013000")),
-				"Please summarise the account of [CUSTOMER_NAME_1], IBAN [IBAN_1].");
+		givenBedrockAnswers(false, List.of(problem("R-01", "critical", "Contains a customer name.", "Erika Mustermann")),
+				"Please summarise the account of [CUSTOMER_NAME_1].");
 
 		CheckResponse result = llmClient.check(PROMPT, RULES);
 
 		assertThat(result.isSafe()).isFalse();
 		assertThat(result.problems()).containsExactly(
-				new Problem("R-01", Severity.CRITICAL, "Contains a customer name.", "Erika Mustermann"),
-				new Problem("R-02", Severity.CRITICAL, "Contains an IBAN.", "DE89370400440532013000"));
-		assertThat(result.improvedVersion()).isEqualTo("Please summarise the account of [CUSTOMER_NAME_1], IBAN [IBAN_1].");
+				new Problem("R-01", Severity.CRITICAL, "Contains a customer name.", "Erika Mustermann"));
+		assertThat(result.improvedVersion()).isEqualTo("Please summarise the account of [CUSTOMER_NAME_1].");
 	}
 
 	@Test
-	void sendsPromptAsDataAndRulesInSystemPrompt() {
+	void sendsOnlyThePlaceholderMaskedPromptAndTheRulesToBedrock() {
 		givenBedrockAnswers(true, List.of(), "");
 
-		llmClient.check(PROMPT, RULES);
+		llmClient.check(PROMPT_WITH_IBAN, RULES);
 
 		ArgumentCaptor<ConverseRequest> captor = ArgumentCaptor.forClass(ConverseRequest.class);
 		verify(bedrock).converse(captor.capture());
 		ConverseRequest request = captor.getValue();
+		String sentPrompt = request.messages().getFirst().content().getFirst().text();
 		assertThat(request.modelId()).isEqualTo(MODEL_ID);
+		assertThat(sentPrompt).isEqualTo(
+				"<prompt_to_check>\nPlease summarise the account of Erika Mustermann, IBAN [IBAN_1].\n</prompt_to_check>");
+		assertThat(sentPrompt).doesNotContain("DE89");
 		assertThat(request.system().getFirst().text()).contains(RULES).contains(BedrockLlmClient.TOOL_NAME);
-		assertThat(request.messages().getFirst().content().getFirst().text())
-				.isEqualTo("<prompt_to_check>\n" + PROMPT + "\n</prompt_to_check>");
 		assertThat(request.toolConfig().tools().getFirst().toolSpec().name()).isEqualTo(BedrockLlmClient.TOOL_NAME);
+	}
+
+	@Test
+	void localFindingsAreAddedToTheModelsFindings() {
+		givenBedrockAnswers(false, List.of(problem("R-01", "critical", "Contains a customer name.", "Erika Mustermann")),
+				"Please summarise the account of [CUSTOMER_NAME_1], IBAN [IBAN_1].");
+
+		CheckResponse result = llmClient.check(PROMPT_WITH_IBAN, RULES);
+
+		assertThat(result.problems()).extracting(Problem::ruleId, Problem::location).containsExactly(
+				org.assertj.core.groups.Tuple.tuple("R-02", "DE89 3704 0044 0532 0130 00"),
+				org.assertj.core.groups.Tuple.tuple("R-01", "Erika Mustermann"));
+		assertThat(result.improvedVersion()).isEqualTo("Please summarise the account of [CUSTOMER_NAME_1], IBAN [IBAN_1].");
+	}
+
+	@Test
+	void usesTheLocallyMaskedTextAsSuggestionWhenTheModelHasNoneOfItsOwn() {
+		givenBedrockAnswers(true, List.of(), "");
+
+		CheckResponse result = llmClient.check(PROMPT_WITH_IBAN, RULES);
+
+		assertThat(result.isSafe()).isFalse();
+		assertThat(result.problems()).extracting(Problem::ruleId).containsExactly("R-02");
+		assertThat(result.improvedVersion()).isEqualTo("Please summarise the account of Erika Mustermann, IBAN [IBAN_1].");
+	}
+
+	@Test
+	void cleanPromptWithSafeAnswerHasNoSuggestion() {
+		givenBedrockAnswers(true, List.of(), "the original prompt again");
+
+		CheckResponse result = llmClient.check(PROMPT, RULES);
+
+		assertThat(result.isSafe()).isTrue();
+		assertThat(result.problems()).isEmpty();
+		assertThat(result.improvedVersion()).isEmpty();
 	}
 
 	@Test
@@ -83,16 +132,6 @@ class BedrockLlmClientTest {
 		givenBedrockAnswers(true, List.of(problem("R-10", "low", "Consider shortening.", "")), "");
 
 		assertThat(llmClient.check(PROMPT, RULES).isSafe()).isTrue();
-	}
-
-	@Test
-	void safeResultWithoutProblemsHasNoSuggestion() {
-		givenBedrockAnswers(true, List.of(), "the original prompt again");
-
-		CheckResponse result = llmClient.check(PROMPT, RULES);
-
-		assertThat(result.isSafe()).isTrue();
-		assertThat(result.improvedVersion()).isEmpty();
 	}
 
 	@Test
@@ -125,29 +164,54 @@ class BedrockLlmClientTest {
 	}
 
 	@Test
-	void failsWhenModelAnswersWithTextInsteadOfTool() {
+	void sloppyProblemWithMissingDetailsStillBlocksWithSafeDefaults() {
+		Document onlyRuleId = Document.fromMap(Map.of("ruleId", Document.fromString("R-01")));
+		givenBedrockAnswers(false, List.of(onlyRuleId), "...");
+
+		CheckResponse result = llmClient.check(PROMPT, RULES);
+
+		assertThat(result.problems()).containsExactly(
+				new Problem("R-01", Severity.CRITICAL, BedrockLlmClient.UNSPECIFIED_MESSAGE, ""));
+		assertThat(result.isSafe()).isFalse();
+	}
+
+	@Test
+	void missingIsSafeFlagIsDerivedFromTheProblems() {
+		Map<String, Document> withoutFlag = new HashMap<>(toolInput(true, List.of(), "").asMap());
+		withoutFlag.remove("isSafe");
+		given(bedrock.converse(any(ConverseRequest.class))).willReturn(toolUse(Document.fromMap(withoutFlag)));
+
+		assertThat(llmClient.check(PROMPT, RULES).isSafe()).isTrue();
+	}
+
+	@Test
+	void retriesOnceWhenTheModelAnswersWithTextInsteadOfTheTool() {
+		given(bedrock.converse(any(ConverseRequest.class)))
+				.willReturn(response(ContentBlock.fromText("Looks fine to me!"), StopReason.END_TURN))
+				.willReturn(toolUse(toolInput(true, List.of(), "")));
+
+		CheckResponse result = llmClient.check(PROMPT, RULES);
+
+		assertThat(result.isSafe()).isTrue();
+		verify(bedrock, times(2)).converse(any(ConverseRequest.class));
+	}
+
+	@Test
+	void failsAfterOneRetryWhenTheAnswerStaysUnusable() {
 		given(bedrock.converse(any(ConverseRequest.class)))
 				.willReturn(response(ContentBlock.fromText("Looks fine to me!"), StopReason.END_TURN));
 
-		assertThatThrownBy(() -> llmClient.check(PROMPT, RULES)).isInstanceOf(LlmException.class);
+		assertThatThrownBy(() -> llmClient.check(PROMPT, RULES))
+				.isInstanceOfSatisfying(LlmException.class,
+						ex -> assertThat(ex.userMessage()).isEqualTo(BedrockLlmClient.MSG_UNUSABLE_ANSWER));
+		verify(bedrock, times(2)).converse(any(ConverseRequest.class));
 	}
 
 	@Test
-	void failsWhenResultFieldIsMissing() {
-		Map<String, Document> incomplete = new HashMap<>(toolInput(true, List.of(), "x").asMap());
-		incomplete.remove("isSafe");
-		given(bedrock.converse(any(ConverseRequest.class))).willReturn(toolUse(Document.fromMap(incomplete)));
-
-		assertThatThrownBy(() -> llmClient.check(PROMPT, RULES)).isInstanceOf(LlmException.class);
-	}
-
-	@Test
-	void failsWhenProblemFieldIsMissing() {
-		Document withoutLocation = Document.fromMap(Map.of(
-				"ruleId", Document.fromString("R-01"),
-				"severity", Document.fromString("critical"),
-				"message", Document.fromString("Contains a name.")));
-		givenBedrockAnswers(false, List.of(withoutLocation), "...");
+	void failsWhenTheProblemsListIsMissing() {
+		Map<String, Document> withoutProblems = new HashMap<>(toolInput(true, List.of(), "x").asMap());
+		withoutProblems.remove("problems");
+		given(bedrock.converse(any(ConverseRequest.class))).willReturn(toolUse(Document.fromMap(withoutProblems)));
 
 		assertThatThrownBy(() -> llmClient.check(PROMPT, RULES)).isInstanceOf(LlmException.class);
 	}
@@ -160,25 +224,56 @@ class BedrockLlmClientTest {
 		assertThatThrownBy(() -> llmClient.check(PROMPT, RULES)).isInstanceOf(LlmException.class);
 	}
 
+	/** Every AWS error gets a fixed, understandable text, is not retried and is never turned into a "safe" result. */
+	@ParameterizedTest(name = "{0}")
+	@MethodSource("awsErrors")
+	void awsErrorsAreExplainedAndNotRetried(String name, SdkException error, String expectedUserMessage) {
+		given(bedrock.converse(any(ConverseRequest.class))).willThrow(error);
+
+		assertThatThrownBy(() -> llmClient.check(PROMPT, RULES))
+				.isInstanceOfSatisfying(LlmException.class, ex -> {
+					assertThat(ex.userMessage()).isEqualTo(expectedUserMessage);
+					assertThat(ex.getMessage()).isEqualTo("Bedrock call failed: " + error.getClass().getSimpleName());
+					assertThat(ex.getCause()).isSameAs(error);
+				});
+		verify(bedrock, times(1)).converse(any(ConverseRequest.class));
+	}
+
+	static Stream<Arguments> awsErrors() {
+		return Stream.of(
+				Arguments.of("access denied", AccessDeniedException.builder().message("echo: " + PROMPT).build(),
+						BedrockLlmClient.MSG_ACCESS_DENIED),
+				Arguments.of("throttled", ThrottlingException.builder().message("slow down").build(),
+						BedrockLlmClient.MSG_BUSY),
+				Arguments.of("validation (wrong model id)", ValidationException.builder().message("echo: " + PROMPT).build(),
+						BedrockLlmClient.MSG_MODEL_UNAVAILABLE),
+				Arguments.of("model not found", ResourceNotFoundException.builder().message("no model").build(),
+						BedrockLlmClient.MSG_MODEL_UNAVAILABLE),
+				Arguments.of("no credentials",
+						SdkClientException.create("Unable to load credentials from any of the providers in the chain"),
+						BedrockLlmClient.MSG_CREDENTIALS),
+				Arguments.of("expired SSO session",
+						SdkClientException.create("The SSO session associated with this profile has expired"),
+						BedrockLlmClient.MSG_CREDENTIALS),
+				Arguments.of("invalid security token", BedrockRuntimeException.builder()
+								.awsErrorDetails(AwsErrorDetails.builder().errorCode("UnrecognizedClientException").build())
+								.message("The security token included in the request is invalid").build(),
+						BedrockLlmClient.MSG_CREDENTIALS),
+				Arguments.of("network down", SdkClientException.create("Unable to execute HTTP request"),
+						BedrockLlmClient.MSG_UNREACHABLE),
+				Arguments.of("timeout", ApiCallTimeoutException.create(50_000), BedrockLlmClient.MSG_TIMEOUT));
+	}
+
 	@Test
-	void wrapsBedrockErrorsWithoutContent() {
+	void userMessagesNeverContainTheRequestContent() {
 		given(bedrock.converse(any(ConverseRequest.class)))
 				.willThrow(ValidationException.builder().message("echo: " + PROMPT).build());
 
 		assertThatThrownBy(() -> llmClient.check(PROMPT, RULES))
-				.isInstanceOf(LlmException.class)
-				.hasMessage("Bedrock call failed: ValidationException")
-				.message().doesNotContain("Mustermann");
-	}
-
-	@Test
-	void wrapsNetworkAndCredentialErrors() {
-		given(bedrock.converse(any(ConverseRequest.class)))
-				.willThrow(SdkClientException.create("Unable to load credentials"));
-
-		assertThatThrownBy(() -> llmClient.check(PROMPT, RULES))
-				.isInstanceOf(LlmException.class)
-				.hasMessage("Bedrock call failed: SdkClientException");
+				.isInstanceOfSatisfying(LlmException.class, ex -> {
+					assertThat(ex.userMessage()).doesNotContain("Mustermann");
+					assertThat(ex.getMessage()).doesNotContain("Mustermann");
+				});
 	}
 
 	private void givenBedrockAnswers(boolean isSafe, List<Document> problems, String improvedVersion) {
