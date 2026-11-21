@@ -79,7 +79,11 @@
             <span class="field-step" aria-hidden="true">2</span>
             <label for="prompt">Prompt</label>
           </div>
-          <textarea id="prompt" name="prompt" rows="9" aria-describedby="prompt-hint prompt-error"></textarea>
+          <!-- The highlight layer lies exactly behind the textarea and colours the findings of the last check. -->
+          <div class="prompt-field">
+            <div class="prompt-highlights" id="prompt-highlights" aria-hidden="true"></div>
+            <textarea id="prompt" name="prompt" rows="9" aria-describedby="prompt-hint prompt-error"></textarea>
+          </div>
           <div class="field-footer">
             <span id="prompt-hint"><kbd id="shortcut-key">Ctrl</kbd> + <kbd>Enter</kbd> to check</span>
             <span id="char-count">0 characters</span>
@@ -113,7 +117,9 @@
       </div>
 
       <!-- Div 1: status (visible) -->
-      <div class="state" data-state="status" hidden>
+      <div class="state state-result" data-state="status" hidden>
+        <!-- Top: grows with the findings; scrolls on its own once it needs more room than there is. -->
+        <div class="result-top">
         <div class="status" id="result-status">
           <span class="status-icon" aria-hidden="true">
             <svg class="icon-safe" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5" /></svg>
@@ -143,14 +149,16 @@
             <span class="button-label">Copy prompt</span>
           </button>
         </div>
+        </div>
 
-        <!-- Shown only for an unsafe result with a non-empty suggestion; hidden again on any change. -->
-        <div class="result-block" id="suggestion-actions" hidden>
-          <h3 class="result-subtitle">Sanitised version</h3>
-          <div id="result-improved"><pre class="sanitized" id="result-improved-text"></pre></div>
-          <div class="actions">
-            <button type="button" class="result-action" id="apply-suggestion">Apply sanitised version</button>
+        <!-- Bottom: always visible below the top part; the text box scrolls on its own.
+             Shown only for an unsafe result with a non-empty suggestion; hidden again on any change. -->
+        <div class="result-bottom" id="suggestion-actions" hidden>
+          <div class="result-bottom-head">
+            <h3 class="result-subtitle">Sanitised version</h3>
+            <button type="button" class="result-action" data-copy="suggestion"><span class="button-label">Copy</span></button>
           </div>
+          <div id="result-improved"><pre class="sanitized" id="result-improved-text"></pre></div>
         </div>
       </div>
 

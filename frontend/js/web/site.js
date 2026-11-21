@@ -7,8 +7,8 @@ import { state, canSubmit, setBusy, isCurrent } from "./state.js";
 import { setState, showLoading, renderResult, renderError, resetResult } from "./result_view.js";
 import { initUpload, setComplianceError, focusUpload } from "./upload.js";
 import { initPromptField, getPrompt, validatePrompt, focusPrompt } from "./prompt_field.js";
+import { initPromptHighlight } from "./prompt_highlight.js";
 import { initCopy } from "./copy.js";
-import { initSuggestion } from "./suggestion.js";
 
 const form = $("check-form");
 
@@ -54,8 +54,8 @@ function init() {
   $("demo-badge").hidden = !isMockMode();
   initUpload();
   initPromptField(form);
+  initPromptHighlight();
   initCopy();
-  initSuggestion();
   form.addEventListener("submit", check);
   setState("empty");
 }

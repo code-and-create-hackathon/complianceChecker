@@ -1,16 +1,31 @@
-# Secrets
+# Secrets – never commit (see CONTRIBUTING.md)
 .env
 .env.*
 !.env.example
 
-# System / Editor / Dependencies
+# System / Editor
 .DS_Store
 .idea/
+*.iml
+*.iws
+*.ipr
 .vscode/
+
+# Dependencies & build output
 node_modules/
+target/
+backend/.mvn/wrapper/maven-wrapper.jar
 
 # Extension (WXT)
 extension/.output/
 extension/.wxt/
 extension/web-ext.config.ts
+
+# Local H2 history database (created when the backend runs from repo root or backend/)
+/data/
+/backend/data/
+*.mv.db
+*.trace.db
+
+# Logs
 *.log

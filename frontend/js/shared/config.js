@@ -1,12 +1,14 @@
-// Frontend configuration. The API URL is not a secret (it is visible in every browser).
-// Demo mode (no backend): website via ?mock=1 / ?mock=0 (web/mock_mode.js), extension via its options page.
+// Frontend configuration, the one place that defines the backend endpoint for website and extension.
+// Not secret (visible in every browser). Demo mode: website via ?mock=1 / ?mock=0 (web/mock_mode.js),
+// extension automatically while BACKEND_ORIGIN is empty.
 
-// The one place that defines the backend endpoint, for website and extension alike.
-// Absolute URL (the extension cannot use a relative one); the extension derives its host permission from it.
-// If the website is served from another origin, the backend must allow it via CORS.
-// TODO: set to the real AWS endpoint once it exists, e.g. "https://api.example.com/api/check".
-// "" = no backend yet: the extension runs in demo mode, the website only works with ?mock=1 / on localhost.
-export const API_URL = "";
+// Where the backend runs. "" = same origin as the page: the website is served by the backend itself.
+// The extension needs an absolute origin (e.g. "http://localhost:8080" locally, the AWS URL later) and derives
+// its host permission from it; the backend allows the extension via CORS_ALLOWED_ORIGINS.
+// TODO: set to the AWS backend once it is deployed.
+export const BACKEND_ORIGIN = "";
+
+export const API_URL = `${BACKEND_ORIGIN}/api/check`;
 
 // The check gives up after this time, so the page never hangs on "Checking …".
 export const REQUEST_TIMEOUT_MS = 60_000;

@@ -1,13 +1,13 @@
 // Service worker: runs the compliance check for the content scripts.
 // The fetch happens here (not in the content script) so the chat site's CSP/CORS cannot block it.
-import { API_URL } from '@shared/config.js';
+import { BACKEND_ORIGIN } from '@shared/config.js';
 import { requestLlm } from '@shared/request_llm.js';
 import { getComplianceText } from '@/utils/rules_store.js';
 import { MESSAGE, failedReply } from '@/utils/messages.js';
 
 /** @param {string} prompt @returns {Promise<import('@/utils/messages.js').CheckReply>} */
 async function check(prompt) {
-  const mock = !API_URL; // no backend configured yet → local demo check
+  const mock = !BACKEND_ORIGIN; // the extension can only reach an absolute origin; none yet → local demo check
   const compliance = await getComplianceText();
   if (!compliance.trim()) {
     return { ok: false, error: 'noRules', message: 'No compliance rules loaded.', mock };
@@ -22,7 +22,7 @@ async function check(prompt) {
 }
 
 export default defineBackground(() => {
-  console.log('[compliance] background started', { id: browser.runtime.id, mock: !API_URL });
+  console.log('[compliance] background started', { id: browser.runtime.id, mock: !BACKEND_ORIGIN });
 
   // Toolbar icon → rules page.
   browser.action.onClicked.addListener(() => browser.runtime.openOptionsPage());
