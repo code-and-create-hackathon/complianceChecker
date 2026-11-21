@@ -812,6 +812,127 @@ kbd {
   padding-block: 16px;
 }
 
+/* ---------- Accounts (backend mode) ---------- */
+
+.topbar-right,
+.account {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.account-name { font-size: 0.9375rem; font-weight: 600; }
+
+.input {
+  display: block;
+  width: 100%;
+  min-height: 42px;
+  padding: 8px 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+  font-size: 0.9375rem;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.input:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: var(--ring);
+}
+
+.input[aria-invalid="true"] { border-color: var(--risk); }
+
+.field-optional { font-weight: 400; color: var(--text-subtle); }
+
+.login-view {
+  display: grid;
+  place-items: start center;
+  padding-block: 48px;
+  flex: 1;
+}
+
+.login-card { width: 100%; max-width: 400px; }
+
+.login-note {
+  margin-top: 16px;
+  font-size: 0.8125rem;
+  color: var(--text-subtle);
+}
+
+.policy-info {
+  margin-bottom: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--primary-soft);
+  font-size: 0.875rem;
+}
+
+.policy-details { margin-top: 6px; }
+.policy-details summary { color: var(--primary); font-weight: 500; cursor: pointer; }
+
+.policy-text {
+  max-height: 240px;
+  margin: 8px 0 0;
+  overflow: auto;
+  font-size: 0.8125rem;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.policy-publish {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin-top: 12px;
+}
+
+.policy-publish .button:disabled { cursor: not-allowed; opacity: 0.6; }
+
+.policy-publish-message { font-size: 0.875rem; color: var(--text-muted); }
+
+.team { padding-bottom: 28px; }
+
+.team-hint {
+  margin: -12px 0 16px;
+  font-size: 0.875rem;
+  color: var(--text-muted);
+}
+
+.user-form {
+  display: flex;
+  gap: 8px;
+  max-width: 520px;
+}
+
+.user-form .button { flex: none; white-space: nowrap; }
+
+.user-list {
+  display: grid;
+  gap: 6px;
+  max-width: 520px;
+  margin: 16px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.user-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+@media (max-width: 480px) {
+  .user-form { flex-direction: column; }
+  .account-name { display: none; }
+}
+
 /* ---------- Animations ---------- */
 
 @keyframes spin { to { transform: rotate(360deg); } }

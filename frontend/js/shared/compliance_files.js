@@ -50,7 +50,7 @@ export function concatComplianceFiles(files) {
 
 /**
  * Adds files to `current` in order (same name replaces the old file) as long as all rules
- * together stay within the API limit, measured exactly like validateRequest does.
+ * together stay within the API limit, measured exactly like validateLocalRequest does.
  * @template {ComplianceFile} T
  * @param {T[]} current
  * @param {T[]} added

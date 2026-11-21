@@ -10,7 +10,8 @@ export const NOTICE_SEVERITY = "low";
 
 const PROBLEM_FIELDS = ["ruleId", "severity", "message", "location"];
 
-/** @typedef {{prompt: string, compliance: string}} CheckRequest */
+/** @typedef {{prompt: string}} CheckRequest  sent to the backend, which adds the published policy */
+/** @typedef {{prompt: string, compliance: string}} LocalCheckRequest  demo mode: checked in the browser */
 /**
  * @typedef {{ruleId: string, severity: "critical" | "high" | "medium" | "low",
  *            message: string, location: string}} Problem
@@ -75,7 +76,7 @@ function checkProblem(problem, i, errors) {
 }
 
 /**
- * Validates a client → server payload.
+ * Validates a client → server payload (POST /api/check).
  * @param {unknown} payload
  * @returns {CheckRequest}
  * @throws {ValidationError}
@@ -84,12 +85,30 @@ export function validateRequest(payload) {
   if (!isPlainObject(payload)) throw new ValidationError("request", ["The request must be a JSON object."]);
 
   const errors = [];
+  checkOnlyFields(payload, ["prompt"], errors);
+  checkText(payload, "prompt", PROMPT_MAX_LENGTH, errors);
+
+  if (errors.length) throw new ValidationError("request", errors);
+  return /** @type {CheckRequest} */ (payload);
+}
+
+/**
+ * Validates the input of a demo-mode check, which runs in the browser against locally uploaded rules.
+ * Also the limit for a policy the administrator publishes.
+ * @param {unknown} payload
+ * @returns {LocalCheckRequest}
+ * @throws {ValidationError}
+ */
+export function validateLocalRequest(payload) {
+  if (!isPlainObject(payload)) throw new ValidationError("request", ["The request must be a JSON object."]);
+
+  const errors = [];
   checkOnlyFields(payload, ["prompt", "compliance"], errors);
   checkText(payload, "prompt", PROMPT_MAX_LENGTH, errors);
   checkText(payload, "compliance", COMPLIANCE_MAX_LENGTH, errors);
 
   if (errors.length) throw new ValidationError("request", errors);
-  return /** @type {CheckRequest} */ (payload);
+  return /** @type {LocalCheckRequest} */ (payload);
 }
 
 /**

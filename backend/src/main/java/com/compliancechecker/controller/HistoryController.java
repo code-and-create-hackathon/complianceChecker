@@ -1,8 +1,11 @@
 package com.compliancechecker.controller;
 
+import com.compliancechecker.account.AppUser;
+import com.compliancechecker.account.AuthInterceptor;
 import com.compliancechecker.history.HistoryEntry;
 import com.compliancechecker.history.HistoryService;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestAttribute;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -16,9 +19,9 @@ public class HistoryController {
 		this.historyService = historyService;
 	}
 
-	/** The latest 100 checks, newest first. */
+	/** The latest 100 checks, newest first: the administrator sees all users, a worker only their own. */
 	@GetMapping("/api/history")
-	public List<HistoryEntry> history() {
-		return historyService.latestEntries();
+	public List<HistoryEntry> history(@RequestAttribute(AuthInterceptor.CURRENT_USER) AppUser user) {
+		return historyService.latestEntries(user);
 	}
 }

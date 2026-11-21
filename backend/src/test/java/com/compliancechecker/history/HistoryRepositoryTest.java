@@ -34,9 +34,9 @@ class HistoryRepositoryTest {
 
 	@Test
 	void storesFindings() {
-		repository.save(new HistoryEntry(Instant.parse("2026-11-21T08:00:00Z"), false,
+		repository.save(new HistoryEntry(Instant.parse("2026-11-21T08:00:00Z"), "erika", false,
 				List.of(new Finding("R-01", Severity.CRITICAL), new Finding("R-09", Severity.MEDIUM))));
-		repository.save(new HistoryEntry(Instant.parse("2026-11-21T09:00:00Z"), true, List.of()));
+		repository.save(new HistoryEntry(Instant.parse("2026-11-21T09:00:00Z"), "erika", true, List.of()));
 
 		List<HistoryEntry> entries = repository.findTop100ByOrderByCreatedAtDescIdDesc();
 
@@ -46,6 +46,6 @@ class HistoryRepositoryTest {
 	}
 
 	private static HistoryEntry entry(String createdAt) {
-		return new HistoryEntry(Instant.parse(createdAt), false, List.of(new Finding("R-02", Severity.CRITICAL)));
+		return new HistoryEntry(Instant.parse(createdAt), "erika", false, List.of(new Finding("R-02", Severity.CRITICAL)));
 	}
 }

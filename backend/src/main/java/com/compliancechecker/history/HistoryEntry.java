@@ -14,9 +14,9 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * One past compliance check: only non-sensitive metadata. Deliberately has no field for any prompt text (original or
- * sanitised: a pattern scanner cannot know every name in it), for the matched passages ({@code location}) or for the
- * messages. Also used directly as the JSON body of {@code GET /api/history}.
+ * One past compliance check and who made it: only non-sensitive metadata. Deliberately has no field for any prompt
+ * text (original or sanitised: a pattern scanner cannot know every name in it), for the matched passages
+ * ({@code location}) or for the messages. Also used directly as the JSON body of {@code GET /api/history}.
  *
  * <p>The table is called {@code compliance_check}: databases created by earlier versions have a {@code check_history}
  * table with a mandatory text column, which new entries could not fill.
@@ -38,6 +38,9 @@ public class HistoryEntry {
 	@Column(nullable = false)
 	private Instant createdAt;
 
+	/** Who made the check; null for checks recorded before user accounts existed. */
+	private String username;
+
 	@Column(nullable = false)
 	private boolean safe;
 
@@ -50,8 +53,9 @@ public class HistoryEntry {
 	}
 
 	/** Rule ids must already be safe ids (see {@code Problem.safeRuleId()}): no ":" or ",". */
-	HistoryEntry(Instant createdAt, boolean safe, List<Finding> findings) {
+	HistoryEntry(Instant createdAt, String username, boolean safe, List<Finding> findings) {
 		this.createdAt = createdAt;
+		this.username = username;
 		this.safe = safe;
 		this.findings = join(findings);
 	}
@@ -62,6 +66,10 @@ public class HistoryEntry {
 
 	public Instant getCreatedAt() {
 		return createdAt;
+	}
+
+	public String getUsername() {
+		return username;
 	}
 
 	@JsonProperty("isSafe")

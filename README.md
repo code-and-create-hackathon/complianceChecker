@@ -47,10 +47,12 @@ The API is defined [here](API.md).
 
 ```mermaid
 flowchart LR
-    A[👤 User<br/>Website] -->|prompt + compliance rules| B[⚙️ Spring Boot backend]
+    AD[👤 Administrator] -->|publishes policy,<br/>adds workers| B
+    A[👤 Worker<br/>Website / Extension] -->|login token + prompt| B[⚙️ Spring Boot backend]
+    B -->|reads| P[(📚 Company policy<br/>versioned)]
     B -->|default| L[🤖 Amazon Bedrock<br/>Nova 2 Lite]
     B -->|LLM_PROVIDER=mock<br/>offline demo only| M[🧪 Mock<br/>simple pattern rules]
-    B -->|time, result,<br/>rule ids + severities| H[(🗄️ H2 history)]
+    B -->|time, user, result,<br/>rule ids + severities| H[(🗄️ H2 history)]
     B -->|isSafe / problems / improvedVersion| A
 ```
 
@@ -64,11 +66,17 @@ Requirements: **JDK 21 or newer**. Maven is not needed (the Maven wrapper `./mvn
 
 ```bash
 cd backend
-AWS_PROFILE=hackathon ./mvnw spring-boot:run
+ADMIN_CODE=choose-a-long-random-code AWS_PROFILE=hackathon ./mvnw spring-boot:run
 ```
 
 Then open **http://localhost:8080** (no URL parameter needed). The profile `hackathon` is only an example: any
 profile or credentials of the AWS default chain work, see [Real check with Amazon Bedrock](#real-check-with-amazon-bedrock).
+
+1. Log in as `admin` with the admin code.
+2. Upload a policy (e.g. `Testdata/compliance-guide-musterfinanz.md`) and click **Publish as company policy**.
+3. Add a worker under **Team**, e.g. `erika`.
+4. Log out and log in as `erika` (no password). Erika sees the published policy, cannot change it, and every check
+   uses it.
 
 **Offline demo without AWS (explicit, simulated results):**
 
@@ -90,6 +98,61 @@ cd backend
 
 Example prompts and a fictional compliance guide for manual testing are in [`Testdata/`](Testdata).
 
+## Running the full demo locally (step by step)
+
+This is the setup that works end to end: backend with real Bedrock checks, website for the administrator, extension
+for the worker. Tested with OpenJDK 25 and Chromium on Fedora.
+
+1. **AWS credentials.** Put a profile into `~/.aws/credentials` (or use `aws sso login`) whose user may call
+   `bedrock:InvokeModel` for Nova 2 Lite in the EU regions (see [Real check with Amazon Bedrock](#real-check-with-amazon-bedrock)).
+   Keys never go into the repository.
+2. **Backend** (terminal 1, keep it running):
+
+   ```bash
+   cd backend
+   ADMIN_CODE=choose-a-long-random-code AWS_PROFILE=<your-profile> ./mvnw spring-boot:run
+   ```
+
+   Without `ADMIN_CODE` the administrator cannot log in. Without AWS, use `LLM_PROVIDER=mock` instead of `AWS_PROFILE`.
+3. **Website** (http://localhost:8080): log in as `admin` with the admin code → upload
+   `Testdata/compliance-guide-musterfinanz.md` → **Publish as company policy** → under **Team** add a worker, e.g. `erika`.
+4. **Extension** (terminal 2): `BACKEND_ORIGIN` in `frontend/js/shared/config.js` must be `http://localhost:8080`
+   (the default). Then:
+
+   ```bash
+   cd extension
+   npm install
+   npm run build    # then load extension/.output/chrome-mv3 via chrome://extensions → Load unpacked
+   # or: npm run dev  (starts its own browser with the extension and hot reload)
+   ```
+
+   `npm run dev` only finds Google Chrome on its own. For another Chromium browser, create the git-ignored
+   `extension/web-ext.config.ts` on your machine:
+
+   ```ts
+   import { defineWebExtConfig } from 'wxt';
+
+   export default defineWebExtConfig({
+     binaries: { chrome: '/usr/bin/chromium-browser' }, // path to your browser
+     // Keeps a profile between runs, so the ChatGPT login and the extension login survive restarts.
+     chromiumArgs: ['--user-data-dir=./.wxt/chrome-data'],
+   });
+   ```
+
+5. **Log in as the worker:** click the extension's toolbar icon → log in as `erika`. The page shows the published policy
+   version.
+6. **Try it** on chatgpt.com, gemini.google.com or claude.ai: `Pay DE89 3704 0044 0532 0130 00` is blocked with the
+   suggestion `[IBAN_1]`; `Hello` is sent normally. More examples are in [`Testdata/test-prompts.md`](Testdata/test-prompts.md).
+
+**If something does not work:**
+
+- *"Not logged in"* in the chat after restarting the backend: sessions are kept in memory, log in again on the
+  extension's settings page (and on the website).
+- *"AWS credentials are missing or expired"*: renew them (`aws sso login`) or check `AWS_PROFILE`, then restart the
+  backend.
+- Changed `BACKEND_ORIGIN`: rebuild the extension and reload it in `chrome://extensions`.
+- *"No compliance policy has been published yet"*: the administrator has to publish one first (step 3).
+
 ## Configuration
 
 All settings are environment variables; the defaults work without any setup.
@@ -105,6 +168,8 @@ All settings are environment variables; the defaults work without any setup.
 | `HISTORY_DB_PASSWORD` | *(empty)*                    | Database password                                               |
 | `PORT`                | `8080`                       | HTTP port                                                       |
 | `CORS_ALLOWED_ORIGINS`| `chrome-extension://*`       | Origins allowed to call `/api/**` cross-origin (browser extension); comma-separated patterns |
+| `ADMIN_USERNAME`      | `admin`                      | The one administrator, created at startup if missing            |
+| `ADMIN_CODE`          | *(empty)*                    | Code the administrator needs to log in. **No default: without it the admin cannot log in.** Never commit it |
 
 To switch the history to PostgreSQL later, set `HISTORY_DB_URL` (e.g. `jdbc:postgresql://host:5432/compliance`),
 user and password; the driver is already included.
@@ -171,18 +236,23 @@ AWS_PROFILE=hackathon ./mvnw spring-boot:run     # LLM_PROVIDER=bedrock is the d
 
 | Method | Path           | Purpose                                     |
 |--------|----------------|---------------------------------------------|
-| `POST` | `/api/check`   | Check a prompt against compliance rules     |
+| `POST` | `/api/check`   | Check a prompt against the company policy   |
 | `GET`  | `/api/history` | The latest 100 checks, newest first         |
+| …      | `/api/auth/*`, `/api/policy`, `/api/users` | Login, policy, team: see [API.md → Accounts](API.md#accounts) |
 
-`POST /api/check` and the error responses follow [API.md](API.md) exactly. `GET /api/history` is backend-only and not (yet) part of API.md.
+All endpoints except login need `Authorization: Bearer <token>`. `POST /api/check`, the account endpoints and the
+error responses follow [API.md](API.md) exactly. `GET /api/history` is backend-only and not (yet) part of API.md.
 
 ### `GET /api/history`
+
+The administrator gets the checks of all users, a worker only their own.
 
 ```json
 [
   {
     "id": 2,
     "createdAt": "2026-11-21T10:00:00Z",
+    "username": "erika",
     "isSafe": false,
     "findings": [{ "ruleId": "R-01", "severity": "critical" }]
   }
@@ -202,15 +272,35 @@ All endpoints answer errors with the same JSON body, defined in [API.md](API.md#
 - `problems[].location` (the matched passage, required by API.md) is only returned to the user who sent the prompt.
   It is **never logged or stored**.
 - **The history stores no text at all**, neither the prompt nor the sanitised version (a pattern scanner cannot know
-  every name in it): only time, `isSafe` and the rule ids with severities. Rule ids that do not look like ids (e.g.
-  free text from the LLM) are stored as `UNSPECIFIED`. The table is `compliance_check`; older local databases may still
-  contain a `check_history` table with sanitised prompts of earlier versions. Delete `backend/data/` to get rid of it.
+  every name in it): only time, the username, `isSafe` and the rule ids with severities. Rule ids that do not look like
+  ids (e.g. free text from the LLM) are stored as `UNSPECIFIED`. The table is `compliance_check`; older local databases
+  may still contain a `check_history` table with sanitised prompts of earlier versions. Delete `backend/data/` to get
+  rid of it.
+- Workers see only their own checks; the administrator sees everyone's (rule ids, never the prompt).
 - Error responses contain fixed texts only, never parts of the request or of the AWS error.
+
+## Known limitations (demo)
+
+This is a demo and must not be used with real data. The security shortcuts are deliberate and marked with
+`TODO(security)` in the code:
+
+- **No passwords for workers.** Anyone who knows a worker's username can log in as them. The administrator is
+  protected only by one shared `ADMIN_CODE`, with no rate limit on attempts. Next step: the company's identity provider
+  (Amazon Cognito / SSO). Only the login step changes; tokens and role checks stay.
+- **Sessions are kept in memory:** a restart logs everyone out, and several backend instances would not share them.
+- **Tokens are stored in the browser** (`sessionStorage` on the website, `chrome.storage.local` in the extension).
+- **Only prompts that go through the gate are checked.** Companies enforce that by force-installing the extension
+  (Chrome enterprise policy) and blocking unapproved AI sites in their proxy.
+- **Prompt injection:** what the pattern scanner finds is replaced before Bedrock sees the prompt, and those findings
+  always count, so a crafted prompt cannot talk them away. For rules beyond those patterns, the LLM is the only judge.
+- One company, one administrator. Multiple companies are not supported yet.
 
 ## Backend structure
 
 ```
 backend/src/main/java/com/compliancechecker/
+├── account/     users, demo login (AuthService), AuthInterceptor (login + admin checks for /api), admin bootstrap
+├── policy/      the versioned company policy (only the administrator publishes)
 ├── controller/  REST endpoints and error handling
 ├── service/     ComplianceService (check + history), SensitiveDataScanner (pattern rules)
 ├── llm/         LlmClient with BedrockLlmClient (default) and MockLlmClient (LLM_PROVIDER=mock only)
@@ -234,16 +324,19 @@ npm run build   # → extension/.output/chrome-mv3
 To load a build manually: `chrome://extensions` → Developer mode → *Load unpacked* → `extension/.output/chrome-mv3`.
 
 On the supported AI chats – ChatGPT (`chatgpt.com`), Gemini (`gemini.google.com`) and Claude (`claude.ai`) – the
-extension holds back every send (Enter or the send button), checks the prompt against the uploaded rules and only sends it if it is compliant. Blocked prompts show the problems and, if available, a
+extension holds back every send (Enter or the send button), checks the prompt and only sends it if it is compliant.
+With a backend, the user logs in on the extension's settings page (toolbar icon) and the prompt is checked against the
+company policy; in demo mode it is checked against rules uploaded on that page. Blocked prompts show the problems and, if available, a
 suggested version. If the check cannot run, nothing is sent.
 
 **Backend:** the endpoint is defined once for website and extension in `frontend/js/shared/config.js`.
-The website is served by the backend and always calls `/api/check` on its own origin. The extension is not, so it
+The website is served by the backend and always calls `/api` on its own origin. The extension is not, so it
 uses the absolute `BACKEND_ORIGIN` (default `http://localhost:8080`, the local backend; set the AWS URL there later)
 and derives its host permission from it. Start the backend first (`cd backend && ./mvnw spring-boot:run`) and rebuild
 the extension after changing the value. With `BACKEND_ORIGIN = ""` the extension runs in demo mode (local mock check,
 nothing leaves the browser). If the backend is not reachable, nothing is sent. The backend also allows the extension
-via `CORS_ALLOWED_ORIGINS`.
+via `CORS_ALLOWED_ORIGINS`. With a backend, the user logs in on the extension's settings page (toolbar icon); not
+logged in (or the session expired) → the prompt is not sent and the dialog links to the login page.
 
-**Try it:** click the toolbar icon → upload a rules file (e.g. `Testdata/compliance-guide-musterfinanz.md`) → on
-chatgpt.com send `Pay DE89 3704 0044 0532 0130 00` (blocked, suggests `[IBAN_1]`) and `Hello` (sent normally).
+**Try it:** publish a policy and add a worker on the website (see [Getting started](#getting-started)) → click the
+extension's toolbar icon and log in as that worker → on chatgpt.com send `Pay DE89 3704 0044 0532 0130 00` (blocked, suggests `[IBAN_1]`) and `Hello` (sent normally).
