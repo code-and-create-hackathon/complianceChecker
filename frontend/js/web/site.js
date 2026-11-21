@@ -16,7 +16,7 @@ async function check(event) {
   if (!canSubmit()) return;
 
   const hasRules = state.complianceFiles.length > 0;
-  if (!hasRules) setComplianceError("Bitte laden Sie Ihre Compliance-Regeln hoch.");
+  if (!hasRules) setComplianceError("Please upload your compliance rules.");
   const hasPrompt = validatePrompt();
 
   if (!hasRules) return focusUpload();

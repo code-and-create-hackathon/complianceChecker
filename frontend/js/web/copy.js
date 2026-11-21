@@ -1,4 +1,4 @@
-// "Prompt kopieren" buttons (data-copy) in the result card.
+// "Copy prompt" buttons (data-copy) in the result card.
 import { $, announce } from "./dom.js";
 
 const COPY_FEEDBACK_MS = 1600;
@@ -30,7 +30,7 @@ export function initCopy() {
     label.dataset.original ??= label.textContent;
 
     const ok = await copyText($("prompt").value);
-    label.textContent = ok ? "Kopiert" : "Kopieren fehlgeschlagen";
+    label.textContent = ok ? "Copied" : "Copy failed";
     announce(label.textContent);
     setTimeout(() => {
       label.textContent = label.dataset.original;

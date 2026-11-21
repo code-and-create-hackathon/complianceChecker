@@ -1,10 +1,10 @@
 <!doctype html>
-<html lang="de">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>complianceChecker</title>
-  <meta name="description" content="Prompts gegen interne Compliance-Regeln prüfen, bevor sie an ein KI-System gehen.">
+  <meta name="description" content="Check prompts against internal compliance rules before they are sent to an AI system.">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23155E63'/%3E%3Cpath d='M16 7.5 9.5 10v5.2c0 4.3 2.8 7.2 6.5 8.3 3.7-1.1 6.5-4 6.5-8.3V10z' fill='none' stroke='%23fff' stroke-width='2' stroke-linejoin='round'/%3E%3Cpath d='m13 15.5 2.2 2.2 4-4' fill='none' stroke='%23fff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -22,19 +22,19 @@
         </svg>
         <span class="brand-name">compliance<strong>Checker</strong></span>
       </a>
-      <span class="badge" id="demo-badge" title="Ohne Backend: Die Prüfung läuft lokal im Browser." hidden>Demo-Modus</span>
+      <span class="badge" id="demo-badge" title="Without a backend: the check runs locally in the browser." hidden>Demo mode</span>
     </div>
   </header>
 
   <main class="container workspace">
     <section class="card" aria-labelledby="page-title">
-      <h1 class="card-title" id="page-title">Prompt prüfen</h1>
+      <h1 class="card-title" id="page-title">Check prompt</h1>
 
       <form id="check-form" novalidate>
         <div class="field">
           <div class="field-label">
             <span class="field-step" aria-hidden="true">1</span>
-            <label for="compliance">Compliance-Regeln</label>
+            <label for="compliance">Compliance rules</label>
           </div>
 
           <div class="dropzone" id="dropzone">
@@ -45,14 +45,14 @@
               <svg viewBox="0 0 24 24"><path d="M12 15V4" /><path d="m7 9 5-5 5 5" /><path d="M4 15v4a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-4" /></svg>
             </span>
             <span class="dropzone-text">
-              <strong>Dateien auswählen oder hierher ziehen</strong>
-              <span id="compliance-hint">Eine oder mehrere .md- oder .txt-Dateien, insgesamt max. 500.000 Zeichen</span>
+              <strong>Choose files or drag them here</strong>
+              <span id="compliance-hint">One or more .md or .txt files, max. 500,000 characters in total</span>
             </span>
           </div>
 
           <div class="file-summary" id="compliance-summary" hidden>
             <span id="compliance-status"></span>
-            <button type="button" class="link-button" id="compliance-clear">Alle entfernen</button>
+            <button type="button" class="link-button" id="compliance-clear">Remove all</button>
           </div>
           <ul class="file-list" id="compliance-files"></ul>
 
@@ -65,7 +65,7 @@
                 <span class="file-name"></span>
                 <span class="file-meta"></span>
               </span>
-              <button type="button" class="icon-button file-remove" aria-label="Datei entfernen">
+              <button type="button" class="icon-button file-remove" aria-label="Remove file">
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12" /></svg>
               </button>
             </li>
@@ -81,32 +81,34 @@
           </div>
           <textarea id="prompt" name="prompt" rows="9" aria-describedby="prompt-hint prompt-error"></textarea>
           <div class="field-footer">
-            <span id="prompt-hint"><kbd id="shortcut-key">Strg</kbd> + <kbd>Enter</kbd> zum Prüfen</span>
-            <span id="char-count">0 Zeichen</span>
+            <span id="prompt-hint"><kbd id="shortcut-key">Ctrl</kbd> + <kbd>Enter</kbd> to check</span>
+            <span id="char-count">0 characters</span>
           </div>
           <p class="field-error" id="prompt-error" hidden></p>
         </div>
 
         <button type="submit" class="button button-primary button-block" id="check-submit">
-          <span class="button-label">Prüfen</span>
+          <span class="button-label">Check</span>
         </button>
       </form>
     </section>
 
-    <section class="card card-result" id="result" aria-labelledby="result-title">
-      <h2 class="card-title" id="result-title">Ergebnis</h2>
+    <section class="result-panel" id="result" aria-labelledby="result-title">
+      <!-- Takes the height of the left card; the content scrolls inside this box, never the page. -->
+      <div class="result-scroll">
+      <h2 class="card-title" id="result-title">Result</h2>
 
       <div class="state state-empty" data-state="empty">
         <span class="state-icon" aria-hidden="true">
           <svg viewBox="0 0 24 24"><path d="M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6z" /></svg>
         </span>
-        <p class="state-text">Noch keine Prüfung.</p>
+        <p class="state-text">Not checked yet.</p>
       </div>
 
       <div class="state" data-state="loading" hidden>
         <div class="loader">
           <span class="spinner" aria-hidden="true"></span>
-          <p>Wird geprüft …</p>
+          <p>Checking …</p>
         </div>
       </div>
 
@@ -122,18 +124,32 @@
             <p class="status-text" id="status-text"></p>
           </div>
         </div>
+
+        <!-- Counts: violations (critical/high/medium) and notices (low). -->
+        <div class="result-counts" id="result-counts" hidden>
+          <span class="count-badge is-crit" id="count-violations"></span>
+          <span class="count-badge is-warn" id="count-notices"></span>
+        </div>
+
+        <!-- One entry per problem from the API response. -->
+        <div class="result-block" id="findings-block" hidden>
+          <h3 class="result-subtitle">Findings</h3>
+          <ol class="finding-list" id="result-findings"></ol>
+        </div>
+
         <div class="actions" id="safe-actions" hidden>
           <button type="button" class="button button-secondary" data-copy="prompt">
             <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="12" height="12" rx="2" /><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1" /></svg>
-            <span class="button-label">Prompt kopieren</span>
+            <span class="button-label">Copy prompt</span>
           </button>
         </div>
-        <!-- Unstyled for now: theming is up to the design side. -->
+
         <!-- Shown only for an unsafe result with a non-empty suggestion; hidden again on any change. -->
-        <div id="suggestion-actions" hidden>
-          <div id="result-improved"><pre id="result-improved-text"></pre></div>
+        <div class="result-block" id="suggestion-actions" hidden>
+          <h3 class="result-subtitle">Sanitised version</h3>
+          <div id="result-improved"><pre class="sanitized" id="result-improved-text"></pre></div>
           <div class="actions">
-            <button type="button" id="apply-suggestion">Vorschlag übernehmen</button>
+            <button type="button" class="result-action" id="apply-suggestion">Apply sanitised version</button>
           </div>
         </div>
       </div>
@@ -144,13 +160,13 @@
             <svg viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12" /></svg>
           </span>
           <div>
-            <p class="status-title">Prüfung fehlgeschlagen</p>
+            <p class="status-title">Check failed</p>
             <p class="status-text" id="error"></p>
           </div>
         </div>
         <div class="actions">
           <button type="submit" form="check-form" class="button button-secondary">
-            <span class="button-label">Erneut versuchen</span>
+            <span class="button-label">Try again</span>
           </button>
         </div>
       </div>
@@ -166,17 +182,18 @@
         <ul id="result-problems"></ul>
         <pre id="message-raw"></pre>
       </div>
+      </div>
 
       <p class="visually-hidden" id="sr-status" role="status" aria-live="polite"></p>
     </section>
   </main>
 
   <section class="container how" aria-labelledby="how-title">
-    <h2 class="how-title" id="how-title">So funktioniert's</h2>
+    <h2 class="how-title" id="how-title">How it works</h2>
     <ol class="how-steps">
-      <li><span class="how-number">1</span>Regeln hochladen</li>
-      <li><span class="how-number">2</span>Prompt prüfen</li>
-      <li><span class="how-number">3</span>Sicher senden</li>
+      <li><span class="how-number">1</span>Upload rules</li>
+      <li><span class="how-number">2</span>Check prompt</li>
+      <li><span class="how-number">3</span>Send safely</li>
     </ol>
   </section>
 

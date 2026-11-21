@@ -1,7 +1,7 @@
 // Compliance rules upload: dropzone, file chips, file checks.
 import { readComplianceFiles, concatComplianceFiles } from "../shared/compliance_files.js";
 import { COMPLIANCE_MAX_LENGTH, charLength } from "../shared/validate.js";
-import { $, numberFormat, setFieldError } from "./dom.js";
+import { $, LOCALE, numberFormat, plural, setFieldError } from "./dom.js";
 import { state, startFileRead, endFileRead } from "./state.js";
 import { resetResult } from "./result_view.js";
 
@@ -16,7 +16,7 @@ const fileClear = $("compliance-clear");
 const chipTemplate = $("file-chip-template");
 const complianceError = $("compliance-error");
 
-const TOO_LONG = `Regeln insgesamt über ${numberFormat.format(COMPLIANCE_MAX_LENGTH)} Zeichen`;
+const TOO_LONG = `rules exceed ${numberFormat.format(COMPLIANCE_MAX_LENGTH)} characters in total`;
 
 /**
  * Bumped whenever the loaded rules are thrown away (clear all, read error).
@@ -46,7 +46,7 @@ export function focusUpload() {
 
 function formatSize(bytes) {
   if (bytes < 1024) return `${bytes} B`;
-  return `${(bytes / 1024).toLocaleString("de-DE", { maximumFractionDigits: 1 })} KB`;
+  return `${(bytes / 1024).toLocaleString(LOCALE, { maximumFractionDigits: 1 })} KB`;
 }
 
 function countRules(markdown) {
@@ -57,7 +57,7 @@ function countRules(markdown) {
 
 function ruleSummary(text) {
   const rules = countRules(text);
-  return rules > 0 ? `${numberFormat.format(rules)} ${rules === 1 ? "Regel" : "Regeln"}` : "Regelwerk geladen";
+  return rules > 0 ? plural(rules, "rule", "rules") : "rule set loaded";
 }
 
 function renderFiles() {
@@ -69,12 +69,12 @@ function renderFiles() {
       chip.querySelector(".file-meta").textContent = `${formatSize(file.size)} · ${ruleSummary(file.text)}`;
       const remove = chip.querySelector(".file-remove");
       remove.dataset.index = String(index);
-      remove.setAttribute("aria-label", `${file.name} entfernen`);
+      remove.setAttribute("aria-label", `Remove ${file.name}`);
       return chip;
     }),
   );
   fileStatus.textContent =
-    files.length === 1 ? "1 Datei geladen" : `${numberFormat.format(files.length)} Dateien geladen`;
+    `${plural(files.length, "file", "files")} loaded`;
   fileSummary.hidden = files.length === 0;
 }
 
@@ -114,7 +114,7 @@ async function loadFiles(fileListLike) {
 
   const skipped = [];
   const candidates = picked.filter((file) => {
-    if (!ACCEPTED_FILE.test(file.name)) skipped.push(`${file.name} (kein .md/.txt)`);
+    if (!ACCEPTED_FILE.test(file.name)) skipped.push(`${file.name} (not .md/.txt)`);
     // UTF-8 needs at most 4 bytes per character: anything bigger is too long for sure, skip reading it.
     else if (file.size > COMPLIANCE_MAX_LENGTH * 4) skipped.push(`${file.name} (${TOO_LONG})`);
     else return true;
@@ -127,22 +127,22 @@ async function loadFiles(fileListLike) {
   try {
     const { files, emptyNames } = await readComplianceFiles(candidates);
     if (generation !== loadGeneration) return; // rules were cleared or failed meanwhile
-    emptyNames.forEach((name) => skipped.push(`${name} (leer)`));
+    emptyNames.forEach((name) => skipped.push(`${name} (empty)`));
     const sizes = new Map(candidates.map((file) => [file.name, file.size]));
     const loaded = files.map((file) => ({ ...file, size: sizes.get(file.name) ?? 0 }));
     const { files: merged, tooLong } = addWithinLimit(state.complianceFiles, loaded);
     tooLong.forEach((name) => skipped.push(`${name} (${TOO_LONG})`));
     setFiles(merged);
 
-    const message = skipped.length ? `Nicht übernommen: ${skipped.join(", ")}.` : "";
+    const message = skipped.length ? `Not added: ${skipped.join(", ")}.` : "";
     if (state.complianceFiles.length) setComplianceNotice(message);
-    else setComplianceError(message || "Keine gültige Datei geladen.");
+    else setComplianceError(message || "No valid file loaded.");
   } catch (error) {
     // Fail loudly: never keep using half-loaded or outdated rules, also not from other pending batches.
     loadGeneration += 1;
     setFiles([]);
     setComplianceError(
-      `Datei konnte nicht gelesen werden (${error.message || error}). Bitte alle Regeln erneut hochladen.`,
+      `File could not be read (${error.message || error}). Please upload all rules again.`,
     );
   } finally {
     endFileRead();
@@ -188,7 +188,7 @@ export function initUpload() {
   });
 
   fileClear.addEventListener("click", () => {
-    loadGeneration += 1; // files still loading must not reappear after "Alle entfernen"
+    loadGeneration += 1; // files still loading must not reappear after "Remove all"
     setComplianceError("");
     setFiles([]);
     fileInput.focus();

@@ -39,12 +39,12 @@ export async function requestLlm(prompt, compliance) {
   } catch (error) {
     if (error.name === "TimeoutError") {
       throw new Error(
-        `Zeitüberschreitung: Der Prüfdienst hat nicht innerhalb von ${REQUEST_TIMEOUT_MS / 1000} Sekunden geantwortet.`,
+        `Timeout: the check service did not answer within ${REQUEST_TIMEOUT_MS / 1000} seconds.`,
       );
     }
-    if (!res) throw new Error("Der Prüfdienst ist nicht erreichbar.");
-    throw new Error("Der Prüfdienst hat keine gültige JSON-Antwort gesendet.");
+    if (!res) throw new Error("The check service is not reachable.");
+    throw new Error("The check service did not send a valid JSON response.");
   }
-  if (!res.ok) throw new Error(`Der Prüfdienst hat mit Status ${res.status} geantwortet.`);
+  if (!res.ok) throw new Error(`The check service answered with status ${res.status}.`);
   return validateResponse(payload);
 }

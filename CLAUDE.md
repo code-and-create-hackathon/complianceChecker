@@ -12,6 +12,7 @@ Compliance gate for financial service providers: prompts first pass through our 
 - [Frontend] · [Backend] · [Database]
 
 ## Rules
+- **Everything in this repo is always in English:** user interface texts, code, identifiers, comments, documentation, test data, file and folder names, commit messages and PR descriptions.
 - Work step by step: check the current state first, then make changes.
 - MVP for the demo over perfection.
 - Never commit secrets (`.env` + `.gitignore`).
