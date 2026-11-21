@@ -23,28 +23,59 @@ import java.util.regex.Pattern;
 @Component
 public class SensitiveDataScanner {
 
+	private static final String UPPER_WORD = "[A-ZÄÖÜ][a-zäöüß]+";
+
 	/** Order matters: when matches overlap, the rule listed first wins. */
 	private static final List<Rule> RULES = List.of(
-			// First, so a confidential sentence is removed as a whole, including anything inside it.
+			// Sentence rules first, so such a sentence is removed as a whole, including anything inside it.
+			new Rule("R-04", Severity.CRITICAL, "Contains possible insider information.", "REMOVED",
+					sentenceContaining("profit warning|ad[ -]hoc (?:disclosure|announcement|notification|release)|Ad-hoc-Mitteilung"
+							+ "|takeover (?:bid|offer)|not yet (?:public|announced)"
+							+ "|before (?:the )?announcement|insider\\w*|Gewinnwarnung|Übernahmeangebot")),
+			new Rule("R-03", Severity.CRITICAL, "Contains health data (special category of personal data).", "REMOVED",
+					sentenceContaining("sick leave|sick note|diagnosis|diagnosed|depression|burn-?out|cancer|pregnan\\w*"
+							+ "|disabilit\\w*|krankgeschrieben|Krankschreibung|Diagnose|schwanger\\w*")),
 			new Rule("R-09", Severity.MEDIUM, "Contains information marked as confidential.", "REMOVED",
-					confidentialSentencePattern()),
+					sentenceContaining("confidential|internal only|not public|vertraulich\\w*|nur intern|nicht öffentlich")),
+			new Rule("R-05", Severity.CRITICAL, "Contains a password or access key.", "SECRET",
+					// Only the value; a value that already is a placeholder is left alone.
+					Pattern.compile("(?<=\\b(?:password|passwd|pwd|passwort|secret|token|api[_-]?key)\\s{0,2}[=:]\\s{0,2})"
+							+ "(?!\\[)(?:\"[^\"\\n]*\"|'[^'\\n]*'|[^\\s,;)]+)", Pattern.CASE_INSENSITIVE)),
+			new Rule("R-05", Severity.CRITICAL, "Contains an internal IP address.", "IP_ADDRESS",
+					Pattern.compile("\\b(?:10(?:\\.\\d{1,3}){3}|192\\.168(?:\\.\\d{1,3}){2}|172\\.(?:1[6-9]|2\\d|3[01])(?:\\.\\d{1,3}){2})\\b")),
 			new Rule("R-02", Severity.CRITICAL, "Contains an IBAN. Bank details must not be sent to AI systems.", "IBAN",
 					Pattern.compile("\\b[A-Z]{2}\\d{2}(?: ?[A-Z0-9]{4}){3,7}(?: ?[A-Z0-9]{1,3})?\\b")),
 			new Rule("R-02", Severity.CRITICAL, "Contains a credit card number.", "CARD_NUMBER",
 					Pattern.compile("(?<!\\d)(?:\\d[ -]?){12,18}\\d(?!\\d)"), SensitiveDataScanner::passesLuhnCheck),
 			new Rule("R-01", Severity.CRITICAL, "Contains an email address.", "EMAIL",
 					Pattern.compile("[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}")),
+			new Rule("R-01", Severity.CRITICAL, "Contains a date of birth.", "DATE_OF_BIRTH",
+					Pattern.compile("(?<=\\b(?:born|born on|date of birth:?|DOB:?|geb\\.|geboren|geboren am)\\s{1,2})"
+							+ "\\d{1,2}\\.\\d{1,2}\\.\\d{2,4}", Pattern.CASE_INSENSITIVE)),
+			new Rule("R-01", Severity.CRITICAL, "Contains a postal address.", "ADDRESS",
+					// Street with house number, optionally followed by postcode and city. A postcode alone is not
+					// matched, because "50000 Euro" looks the same.
+					Pattern.compile("\\b" + UPPER_WORD + "(?:straße|strasse|str\\.|weg|allee|platz|gasse|ring)\\s+\\d+[a-z]?"
+							+ "(?:,\\s*\\d{5}\\s+" + UPPER_WORD + ")?")),
+			new Rule("R-01", Severity.CRITICAL, "Contains a person's name.", "NAME",
+					// Only names after a form of address, so ordinary capitalised words are not matched.
+					Pattern.compile("(?<=\\b(?:Mr|Mrs|Ms|Mr\\.|Mrs\\.|Ms\\.|Herr|Frau|Herrn)\\s)" + UPPER_WORD
+							+ "(?:\\s" + UPPER_WORD + ")?")),
 			new Rule("R-01", Severity.CRITICAL, "Contains a phone number.", "PHONE",
 					// Starts with +, 00 or 0, so ordinary numbers like amounts or years are not matched.
-					Pattern.compile("(?<![\\w+])(?:(?:\\+|00)[1-9]\\d{0,2}|0)[ /-]?\\(?\\d{2,5}\\)?(?:[ /-]?\\d{2,}){1,4}(?!\\w)")));
+					Pattern.compile("(?<![\\w+])(?:(?:\\+|00)[1-9]\\d{0,2}|0)[ /-]?\\(?\\d{2,5}\\)?(?:[ /-]?\\d{2,}){1,4}(?!\\w)")),
+			new Rule("R-08", Severity.MEDIUM, "Contains the name of a company (possible client or business partner).",
+					"COMPANY",
+					// Only names with a legal form, so well-known brands like "Deutsche Bank" stay allowed.
+					Pattern.compile("\\b(?:[A-ZÄÖÜ][\\wäöüß&-]*\\s+){0,3}[A-ZÄÖÜ][\\wäöüß&-]*\\s+"
+							+ "(?:GmbH & Co\\. KG|GmbH|AG|SE|KGaA|KG|OHG|UG|Ltd\\.?|Inc\\.?|LLC|plc)(?![\\wäöüß])")));
 
 	/**
-	 * The whole sentence around a confidentiality keyword. A ".", "!" or "?" only ends a sentence if whitespace or
-	 * the end follows, so e-mail addresses and decimals do not split it.
+	 * The whole sentence around one of the keywords. A ".", "!" or "?" only ends a sentence if whitespace or the end
+	 * follows, so e-mail addresses and decimals do not split it.
 	 */
-	private static Pattern confidentialSentencePattern() {
+	private static Pattern sentenceContaining(String keywords) {
 		String sentenceChar = "(?:[^.!?\\n]|[.!?](?=\\S))";
-		String keywords = "confidential|internal only|not public|insider\\w*|vertraulich\\w*|nur intern|nicht öffentlich";
 		return Pattern.compile("(?:(?=\\S)" + sentenceChar + "*?)?\\b(?:" + keywords + ")\\b" + sentenceChar + "*[.!?]?",
 				Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CHARACTER_CLASS);
 	}

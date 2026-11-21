@@ -104,13 +104,19 @@ The mock is **not a real compliance check**. It ignores the uploaded compliance 
 reported with the rule ids of [`Testdata/compliance-guide-musterfinanz.md`](Testdata/compliance-guide-musterfinanz.md)
 (like the website's demo mode):
 
-| Pattern                                   | `ruleId` | `severity` | Placeholder       |
-|-------------------------------------------|----------|------------|-------------------|
+| Pattern                                                              | `ruleId` | `severity` | Placeholder |
+|----------------------------------------------------------------------|----------|------------|-------------|
+| Sentence with an insider keyword (*profit warning*, *takeover bid*, *Gewinnwarnung*, …) | `R-04` | `critical` | `[REMOVED_n]` (whole sentence) |
+| Sentence with health data (*sick leave*, *diagnosis*, *depression*, *pregnant*, …) | `R-03` | `critical` | `[REMOVED_n]` (whole sentence) |
 | Sentence with a confidentiality keyword (*confidential*, *internal only*, *vertraulich*, …) | `R-09` | `medium` | `[REMOVED_n]` (whole sentence) |
-| IBAN                                      | `R-02`   | `critical` | `[IBAN_n]`        |
-| Credit card number (Luhn-checked)         | `R-02`   | `critical` | `[CARD_NUMBER_n]` |
-| Email address                             | `R-01`   | `critical` | `[EMAIL_n]`       |
-| Phone number                              | `R-01`   | `critical` | `[PHONE_n]`       |
+| Password / token / API key after `=` or `:`; internal IPv4 address   | `R-05`   | `critical` | `[SECRET_n]`, `[IP_ADDRESS_n]` |
+| IBAN; credit card number (Luhn-checked)                              | `R-02`   | `critical` | `[IBAN_n]`, `[CARD_NUMBER_n]` |
+| Email; phone; name after *Mr/Mrs/Ms/Herr/Frau*; date of birth after *born/geb.*; street + house number | `R-01` | `critical` | `[EMAIL_n]`, `[PHONE_n]`, `[NAME_n]`, `[DATE_OF_BIRTH_n]`, `[ADDRESS_n]` |
+| Company name with a legal form (*GmbH*, *AG*, *SE*, *Ltd*, …)        | `R-08`   | `medium`   | `[COMPANY_n]` |
+
+With these rules the mock handles all 9 prompts in [`Testdata/test-prompts.md`](Testdata/test-prompts.md) as expected
+(checked by `TestdataPromptsTest`). It still misses anything without such a pattern, e.g. a name without a form of
+address or a company without a legal form.
 
 API.md allows no extra response field, so mock results are not marked in the response. The backend logs a warning at
 startup instead: `LLM provider 'mock' is active: results are simulated`.

@@ -5,6 +5,9 @@ import com.compliancechecker.model.Problem;
 import com.compliancechecker.model.Severity;
 import com.compliancechecker.service.SensitiveDataScanner;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.tuple;
@@ -118,5 +121,36 @@ class MockLlmClientTest {
 		assertThat(mock.check(prompt, RULES).problems())
 				.hasSize(3)
 				.allSatisfy(problem -> assertThat(prompt).contains(problem.location()));
+	}
+
+	@ParameterizedTest(name = "{1}: {0}")
+	@CsvSource(delimiter = ';', value = {
+			"Use api_key: sk-test-abc123 for the request.; R-05; Use api_key: [SECRET_1] for the request.",
+			"The server 192.168.1.20 does not respond.; R-05; The server [IP_ADDRESS_1] does not respond.",
+			"Write a letter to Frau Erika Mustermann.; R-01; Write a letter to Frau [NAME_1].",
+			"The client, geb. 01.02.1980, asks for a loan.; R-01; The client, geb. [DATE_OF_BIRTH_1], asks for a loan.",
+			"Send it to Hauptstraße 5, 10115 Berlin please.; R-01; Send it to [ADDRESS_1] please.",
+			"Example Holding GmbH asks for a credit line.; R-08; [COMPANY_1] asks for a credit line.",
+			"Hi. She is pregnant and asks about parental leave. Thanks.; R-03; Hi. [REMOVED_1] Thanks.",
+			"An ad hoc announcement on the merger follows tomorrow.; R-04; [REMOVED_1]" })
+	void detectsFurtherKindsOfSensitiveData(String prompt, String ruleId, String improvedVersion) {
+		CheckResponse result = mock.check(prompt, RULES);
+
+		assertThat(result.isSafe()).isFalse();
+		assertThat(result.problems()).extracting(Problem::ruleId).containsExactly(ruleId);
+		assertThat(result.improvedVersion()).isEqualTo(improvedVersion);
+	}
+
+	@ParameterizedTest
+	@ValueSource(strings = {
+			"We need 50000 Euro for the new office.",
+			"Version 10.2.1 fixes the login bug.",
+			"Please run diagnostics on the build server.",
+			"Let's have an ad hoc meeting about the roadmap.",
+			"Deutsche Bank has published its quarterly results.",
+			"Set max_tokens=1000 in the request.",
+			"Explain bond duration in simple words." })
+	void harmlessPromptsAreNotFlagged(String prompt) {
+		assertThat(mock.check(prompt, RULES).problems()).isEmpty();
 	}
 }
