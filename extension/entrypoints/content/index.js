@@ -2,7 +2,6 @@
 // compliance rules (via the background service worker) and only lets it through when it is safe.
 // Fails closed: if the check cannot run, the prompt is not sent.
 import { chatgpt } from './chatgpt.js';
-import { copilot } from './copilot.js';
 import { gemini } from './gemini.js';
 import { claude } from './claude.js';
 import { createDialog } from './dialog.js';
@@ -11,9 +10,6 @@ import { sendCheck, sendOpenRules } from '@/utils/messages.js';
 // One adapter per site; more providers go here (and into `matches`).
 const ADAPTERS = {
   'chatgpt.com': chatgpt,
-  'copilot.microsoft.com': copilot, // redirects to copilot.com
-  'copilot.com': copilot,
-  'www.copilot.com': copilot,
   'gemini.google.com': gemini,
   'claude.ai': claude,
 };
@@ -23,14 +19,7 @@ const site = ADAPTERS[globalThis.location?.hostname] ?? chatgpt;
 const DEMO_NOTE = 'Demo mode: checked locally with sample rules, no backend connected.';
 
 export default defineContentScript({
-  matches: [
-    'https://chatgpt.com/*',
-    'https://copilot.microsoft.com/*',
-    'https://copilot.com/*',
-    'https://www.copilot.com/*',
-    'https://gemini.google.com/*',
-    'https://claude.ai/*',
-  ],
+  matches: ['https://chatgpt.com/*', 'https://gemini.google.com/*', 'https://claude.ai/*'],
   // Register our listeners before the site's own scripts run, so we always see a send first.
   runAt: 'document_start',
 

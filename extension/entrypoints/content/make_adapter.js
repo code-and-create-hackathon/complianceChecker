@@ -1,5 +1,5 @@
 // Builds a site adapter (same shape as `chatgpt` in chatgpt.js, see SiteAdapter there) from a few CSS selectors.
-// Used by the adapters for the other AI chats (Copilot, Gemini, Claude); chatgpt.js keeps its own code.
+// Used by the adapters for the other AI chats (Gemini, Claude); chatgpt.js keeps its own code.
 //
 // A send is recognised by Enter in the composer (index.js), a click on a known send button or a submit button
 // in the composer's form, or the submit of that form.
