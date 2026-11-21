@@ -13,10 +13,10 @@ import java.time.Duration;
 
 /**
  * Creates the Bedrock client. Credentials come from the default AWS provider chain (environment, profile/SSO, IAM
- * role) and are resolved on the first call. Only active with {@code llm.provider=bedrock}.
+ * role) and are resolved on the first call. Active unless {@code llm.provider=mock}.
  */
 @Configuration
-@ConditionalOnProperty(name = "llm.provider", havingValue = "bedrock")
+@ConditionalOnProperty(name = "llm.provider", havingValue = "bedrock", matchIfMissing = true)
 public class BedrockConfig {
 
 	private static final Logger log = LoggerFactory.getLogger(BedrockConfig.class);

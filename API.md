@@ -18,7 +18,7 @@
 
 Multiple compliance files are concatenated, each prefixed with `<!-- file: name.md -->`, separated by `\n\n---\n\n`. Invalid request → HTTP `400`.
 
-"chars" means Unicode characters (code points), not bytes or UTF-16 code units: an emoji counts as 1 (JS `[...s].length`, Python `len(s)`).
+"chars" means UTF-16 code units, not bytes or code points: most characters count as 1, an emoji or other character outside the BMP counts as 2 (JS `s.length`, Java `String.length()`). This is what the backend's validation counts.
 
 ## Response
 
@@ -60,3 +60,35 @@ Multiple compliance files are concatenated, each prefixed with `<!-- file: name.
 
 - All fields required; no `null`; no extra fields.
 - The web client aborts a request after 60 s (`REQUEST_TIMEOUT_MS` in `frontend/js/shared/config.js`); the backend should answer within that time.
+
+## Error responses
+
+Every error response (status `4xx` or `5xx`) has this body. All texts are fixed server-side wording and never contain parts of the request.
+
+```json
+{
+  "error": "INVALID_REQUEST",
+  "message": "The request is invalid. See fieldErrors.",
+  "fieldErrors": { "prompt": "must not be empty" },
+  "requestId": "6f1c..."
+}
+```
+
+| Status | `error`                  | When                                       |
+|--------|--------------------------|--------------------------------------------|
+| 400    | `INVALID_REQUEST`        | empty/missing/too long field, invalid JSON |
+| 405    | `METHOD_NOT_ALLOWED`     | wrong HTTP method                          |
+| 415    | `UNSUPPORTED_MEDIA_TYPE` | `Content-Type` is not `application/json`   |
+| 502    | `LLM_UNAVAILABLE`        | the LLM could not be reached or failed     |
+| 500    | `INTERNAL_ERROR`         | anything else                              |
+
+Other framework errors use the name of their HTTP status as `error`, e.g. `404` → `NOT_FOUND`.
+
+| Field         | Type   | Rules                                                                 |
+|---------------|--------|-----------------------------------------------------------------------|
+| `error`       | string | stable machine-readable code, see the table above                     |
+| `message`     | string | human-readable, safe to show to the user (e.g. which AWS problem to fix for `502`) |
+| `fieldErrors` | object | field name → problem; `{}` if not about a field                       |
+| `requestId`   | string | id to find the request in the server log                              |
+
+Clients show `message` together with the status; a body that is not JSON is treated as a generic error.

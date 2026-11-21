@@ -37,9 +37,9 @@ function checkOnlyFields(obj, allowed, errors, prefix = "") {
   }
 }
 
-/** Length in Unicode characters (code points), not UTF-16 code units: an emoji counts as 1. */
+/** Length in UTF-16 code units, exactly like the backend (Java String.length()): an emoji counts as 2. */
 export function charLength(value) {
-  return [...value].length;
+  return value.length;
 }
 
 function checkText(obj, field, maxLength, errors) {

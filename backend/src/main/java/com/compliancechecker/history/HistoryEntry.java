@@ -14,14 +14,17 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * One past compliance check. Deliberately has no field for the original prompt or for the matched passages
- * ({@code location}); see {@link HistoryService}. Also used directly as the JSON body of {@code GET /api/history}.
+ * One past compliance check: only non-sensitive metadata. Deliberately has no field for any prompt text (original or
+ * sanitised: a pattern scanner cannot know every name in it), for the matched passages ({@code location}) or for the
+ * messages. Also used directly as the JSON body of {@code GET /api/history}.
+ *
+ * <p>The table is called {@code compliance_check}: databases created by earlier versions have a {@code check_history}
+ * table with a mandatory text column, which new entries could not fill.
  */
 @Entity
-@Table(name = "check_history")
+@Table(name = "compliance_check")
 public class HistoryEntry {
 
-	static final int MAX_IMPROVED_VERSION_LENGTH = 25_000;
 	static final int MAX_FINDINGS_LENGTH = 10_000;
 
 	/** Rule id and severity of one problem; message and location are never stored. */
@@ -42,20 +45,15 @@ public class HistoryEntry {
 	@Column(nullable = false, length = MAX_FINDINGS_LENGTH)
 	private String findings;
 
-	/** Sanitised prompt, or "" if there is none or it could not be stored safely. */
-	@Column(nullable = false, length = MAX_IMPROVED_VERSION_LENGTH)
-	private String improvedVersion;
-
 	protected HistoryEntry() {
 		// for JPA
 	}
 
 	/** Rule ids must already be safe ids (see {@code Problem.safeRuleId()}): no ":" or ",". */
-	HistoryEntry(Instant createdAt, boolean safe, List<Finding> findings, String improvedVersion) {
+	HistoryEntry(Instant createdAt, boolean safe, List<Finding> findings) {
 		this.createdAt = createdAt;
 		this.safe = safe;
 		this.findings = join(findings);
-		this.improvedVersion = improvedVersion;
 	}
 
 	public Long getId() {
@@ -79,10 +77,6 @@ public class HistoryEntry {
 				.map(pair -> pair.split(":"))
 				.map(parts -> new Finding(parts[0], Severity.valueOf(parts[1].toUpperCase(Locale.ROOT))))
 				.toList();
-	}
-
-	public String getImprovedVersion() {
-		return improvedVersion;
 	}
 
 	/** Joins as many findings as fit into the column. */

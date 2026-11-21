@@ -46,8 +46,8 @@ public class ApiExceptionHandler {
 
 	@ExceptionHandler(LlmException.class)
 	ResponseEntity<ErrorResponse> handleLlmFailure(LlmException ex) {
-		return respond(HttpStatus.BAD_GATEWAY, "LLM_UNAVAILABLE",
-				"The compliance check is temporarily unavailable. Please try again.", Map.of(), ex);
+		// userMessage() is a fixed text chosen by the type of the error, never the error's own message.
+		return respond(HttpStatus.BAD_GATEWAY, "LLM_UNAVAILABLE", ex.userMessage(), Map.of(), ex);
 	}
 
 	/** Keeps the status of Spring's own errors (404, 405, 415, ...); everything else becomes 500. */
@@ -66,7 +66,8 @@ public class ApiExceptionHandler {
 			Map<String, String> fieldErrors, Exception ex) {
 		String requestId = UUID.randomUUID().toString();
 		if (status.is5xxServerError()) {
-			log.error("requestId={} error={} exception={}", requestId, error, ex.getClass().getName());
+			String cause = ex.getCause() == null ? "-" : ex.getCause().getClass().getSimpleName();
+			log.error("requestId={} error={} exception={} cause={}", requestId, error, ex.getClass().getName(), cause);
 		}
 		else {
 			log.warn("requestId={} error={} fields={} exception={}", requestId, error, fieldErrors.keySet(),

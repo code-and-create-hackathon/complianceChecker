@@ -22,8 +22,9 @@ export async function loadComplianceFiles(picked) {
   const skipped = [];
   const candidates = [...picked].filter((file) => {
     if (!ACCEPTED_FILE.test(file.name)) skipped.push(`${file.name} (not .md/.txt)`);
-    // UTF-8 needs at most 4 bytes per character: anything bigger is too long for sure, skip reading it.
-    else if (file.size > COMPLIANCE_MAX_LENGTH * 4) skipped.push(`${file.name} (${TOO_LONG})`);
+    // Every UTF-16 code unit (what the limit counts) needs at least 1 byte in UTF-8: a bigger file is too long
+    // for sure, skip reading it.
+    else if (file.size > COMPLIANCE_MAX_LENGTH) skipped.push(`${file.name} (${TOO_LONG})`);
     else return true;
     return false;
   });

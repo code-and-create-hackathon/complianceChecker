@@ -150,6 +150,26 @@ class CheckControllerTest {
 	}
 
 	@Test
+	void llmFailureShowsTheUnderstandableMessageAndNeverApprovesThePrompt(CapturedOutput output) throws Exception {
+		String explanation = "AWS credentials are missing or expired. Start the backend with a valid AWS profile.";
+		given(llmClient.check(anyString(), anyString()))
+				.willThrow(new LlmException("Bedrock call failed: SdkClientException", explanation,
+						new IllegalStateException("echo: " + SECRET)));
+
+		String body = postCheck(json("Transfer from " + SECRET, "rules"))
+				.andExpect(status().isBadGateway())
+				.andExpect(jsonPath("$.error").value("LLM_UNAVAILABLE"))
+				.andExpect(jsonPath("$.message").value(explanation))
+				.andExpect(jsonPath("$.isSafe").doesNotExist())
+				.andReturn().getResponse().getContentAsString();
+
+		assertThat(body).doesNotContain(SECRET);
+		// The log names the cause type for debugging, but never its message.
+		assertThat(output.getAll()).contains("cause=IllegalStateException").doesNotContain(SECRET);
+		verifyNoInteractions(historyService);
+	}
+
+	@Test
 	void llmFailureReturns502WithoutLeakingContent(CapturedOutput output) throws Exception {
 		given(llmClient.check(anyString(), anyString())).willThrow(new LlmException("Bedrock timeout"));
 

@@ -1,6 +1,6 @@
 // Service worker: runs the compliance check for the content scripts.
 // The fetch happens here (not in the content script) so the chat site's CSP/CORS cannot block it.
-import { BACKEND_ORIGIN } from '@shared/config.js';
+import { API_PATH, BACKEND_ORIGIN } from '@shared/config.js';
 import { requestLlm } from '@shared/request_llm.js';
 import { getComplianceText } from '@/utils/rules_store.js';
 import { MESSAGE, failedReply } from '@/utils/messages.js';
@@ -13,7 +13,7 @@ async function check(prompt) {
     return { ok: false, error: 'noRules', message: 'No compliance rules loaded.', mock };
   }
   try {
-    const result = await requestLlm(prompt, compliance, { mock });
+    const result = await requestLlm(prompt, compliance, { mock, apiUrl: `${BACKEND_ORIGIN}${API_PATH}` });
     return { ok: true, result, mock };
   } catch (error) {
     console.warn('[compliance] check failed', error);
