@@ -7,22 +7,22 @@ import { validateRequest, validateResponse } from "./validate.js";
 /**
  * @param {string} prompt
  * @param {string} compliance
- * @param {{mock?: boolean, apiUrl?: string}} [options]  mock: use the local demo instead of
- *   the backend; apiUrl: absolute URL in the extension (default API_URL).
+ * @param {{mock?: boolean}} [options]  mock: use the local demo instead of the backend (API_URL).
  * @returns {Promise<import("./validate.js").CheckResponse>}
  * @throws {import("./validate.js").ValidationError} if request or response breaks the contract
  */
-export async function requestLlm(prompt, compliance, { mock = false, apiUrl = API_URL } = {}) {
+export async function requestLlm(prompt, compliance, { mock = false } = {}) {
   const request = validateRequest({ prompt, compliance });
 
   if (mock) return validateResponse(await mockLlm(request.prompt, request.compliance));
+  if (!API_URL) throw new Error("No check service configured (API_URL in frontend/js/shared/config.js).");
 
   // The timeout covers both the connection and reading the response body.
   const signal = AbortSignal.timeout(REQUEST_TIMEOUT_MS);
   let res;
   let payload;
   try {
-    res = await fetch(apiUrl, {
+    res = await fetch(API_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(request),

@@ -56,3 +56,14 @@ npm run build   # → extension/.output/chrome-mv3
 ```
 
 To load a build manually: `chrome://extensions` → Developer mode → *Load unpacked* → `extension/.output/chrome-mv3`.
+
+On `chatgpt.com` the extension holds back every send (Enter or the send button), checks the prompt against the
+uploaded rules and only sends it if it is compliant. Blocked prompts show the problems and, if available, a
+suggested version. If the check cannot run, nothing is sent.
+
+**Backend:** the endpoint is set once for website and extension in `frontend/js/shared/config.js` (`API_URL`,
+absolute URL); rebuild the extension after changing it. While it is empty the extension runs in demo mode
+(local mock check, nothing leaves the browser).
+
+**Try it:** click the toolbar icon → upload a rules file (e.g. `Testdata/compliance-guide-musterfinanz.md`) → on
+chatgpt.com send `Pay DE89 3704 0044 0532 0130 00` (blocked, suggests `[IBAN_1]`) and `Hello` (sent normally).
