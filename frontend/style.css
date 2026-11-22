@@ -1,4 +1,4 @@
-/* complianceChecker styles */
+/* Four Eyes styles */
 
 /* ---------- Design tokens ---------- */
 
@@ -109,8 +109,7 @@ svg {
 }
 
 .brand-name strong { font-weight: 700; }
-.brand-mark rect { fill: var(--primary); stroke: none; }
-.brand-mark path { stroke: var(--surface); }
+.brand-mark { display: block; border-radius: 7px; }
 
 .badge {
   padding: 3px 10px;

@@ -5,11 +5,11 @@ import { BACKEND_ORIGIN } from '../frontend/js/shared/config.js';
 // See https://wxt.dev/api/reference/wxt/interfaces/inlineconfig.html
 export default defineConfig({
   manifest: {
-    name: 'Compliance Checker',
+    name: 'Four Eyes',
     description: 'Checks prompts against internal compliance rules before they are sent to an AI chat.',
     permissions: ['storage'],
     // No popup: clicking the toolbar icon opens the rules (options) page, see background.js.
-    action: { default_title: 'Compliance Checker – rules' },
+    action: { default_title: 'Four Eyes – rules' },
     // Lets the service worker call the backend. The backend also allows extensions via CORS_ALLOWED_ORIGINS.
     // Empty BACKEND_ORIGIN → demo mode, no network access needed.
     host_permissions: BACKEND_ORIGIN ? [`${new URL(BACKEND_ORIGIN).origin}/*`] : [],
