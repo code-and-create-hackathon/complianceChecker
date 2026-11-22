@@ -13,7 +13,7 @@ import org.springframework.stereotype.Component;
  * explicitly selected with {@code llm.provider=mock} (env {@code LLM_PROVIDER=mock}); the default is Bedrock.
  *
  * <p>This is not a real compliance check: it ignores the uploaded compliance rules and only finds the scanner's
- * patterns. API.md allows no extra field to mark this, so it is stated in the log and the README.
+ * patterns. API.md allows no extra field to mark this, so it is stated in the log and in docs/backend.md.
  */
 @Component
 @ConditionalOnProperty(name = "llm.provider", havingValue = "mock")
