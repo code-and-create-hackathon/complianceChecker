@@ -1,34 +1,32 @@
 # Contributing to Four Eyes
 
-Thanks for helping out! This project is still at an early stage (MVP for the demo), so this guide is short and will grow with the codebase.
+## Branches
 
-## Developer Quickstart
+- `main`: stable, demo-ready. No direct pushes.
+- `dev`: integration branch; feature branches start here and merge back via PR.
 
-### Branch Structure
-*   **`main`**: Stable, demo-ready branch. Please do not push directly here.
-*   **`dev`**: Integration branch where features come together. Once tested, `dev` is merged into `main`.
+## Workflow
 
+1. Check the current state first (`git fetch`, read the relevant code and docs).
+2. Small PRs, one topic each; say *what* changed and *why*.
+3. MVP over perfection.
+4. Everything in English: UI, code, comments, docs, test data, commits.
 
-### Workflow
-1. Check the current state first (`git fetch`, read the relevant code/docs), then change things step by step.
-2. Keep Pull Requests small and focused on one topic.
-3. Describe *what* changed and *why* in the PR description.
-4. MVP over perfection: a working demo comes first, polishing later.
+## Commit messages
 
-### Commit Messages
-imperative and descriptive, e.g. `feat: Add API payload validation`, `fix: README API link`.
+Conventional and imperative: `feat: add payload validation`, `fix: README API link`.
 
-### Secrets & Sensitive Data
-This is a compliance tool, so let's practise what we preach:
-*   **Never commit secrets** (API keys, AWS credentials, tokens). Use a local `.env` file, which must be listed in `.gitignore`.
-*   Don't put real customer data or real internal compliance documents into the repo, tests or example prompts. Use made-up sample data.
+## Secrets and data
 
-### API Changes
-The client/server contract lives in [API.md](API.md). If you change the payload (`prompt`, `compliance`, `isSafe`, `problems`, `improvedVersion`) or the error responses, update `API.md` in the same Pull Request.
+- Never commit secrets (API keys, AWS credentials, admin codes). Use a git-ignored `.env`.
+- Only fictional data in the repo, tests and example prompts.
 
-### Architecture & Scope
-See the [README](README.md) for the roadmap and architecture diagrams.
-*   **Stage 1:** website · **Stage 2:** browser extension
-*   LLM: Amazon Nova via Amazon Bedrock, configurable behind a well-defined API · Hosting: AWS
-*   GDPR is out of scope for now. Please don't expand the scope without agreement.
+## Docs
 
+- Payload or error changes: update [API.md](API.md) in the same PR.
+- Keep [README.md](README.md) short; details go into [docs/](docs).
+
+## Scope
+
+Stage 1 website, Stage 2 browser extension. LLM: Amazon Nova via Bedrock. Hosting: AWS. GDPR is out of scope;
+don't expand scope without agreement.
