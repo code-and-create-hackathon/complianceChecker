@@ -97,7 +97,7 @@ The following is **explicitly permitted** (`isSafe = true`):
 
 ## 5. Rules for the sanitised version (`improvedVersion`)
 
-If a prompt is blocked, the Compliance Checker should suggest a sanitised version:
+If a prompt is blocked, Four Eyes should suggest a sanitised version:
 
 1. **Personal names** → `[PERSON_1]`, `[PERSON_2]` …
 2. **Customer company names** → `[COMPANY_1]`, `[COMPANY_2]` …

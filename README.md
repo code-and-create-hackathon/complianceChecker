@@ -1,4 +1,6 @@
-# complianceChecker
+<img src="logo.png" alt="" width="96">
+
+# Four Eyes
 
 ## The problem
 People post sensitive data in AI chats, neglecting their compliance duties.
@@ -24,7 +26,7 @@ Avoids potential gdpr problems if servers are self-hosted.
 
 ```mermaid
 flowchart LR
-    A[👤 User<br/>Extension] -->|prompt + compliance context| B[⚙️ Backend<br/>Compliance Checker]
+    A[👤 User<br/>Extension] -->|prompt + compliance context| B[⚙️ Backend<br/>Four Eyes]
     B -->|check| L[🤖 LLM<br/>configurable]
     B -->|reads| D[(📚 Compliance Guides<br/>Company Policies)]
     B -->|isSafe / problems / improvedVersion| A

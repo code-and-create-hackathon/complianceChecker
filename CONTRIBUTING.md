@@ -1,4 +1,4 @@
-# Contributing to complianceChecker
+# Contributing to Four Eyes
 
 Thanks for helping out! This project is still at an early stage (MVP for the demo), so this guide is short and will grow with the codebase.
 
