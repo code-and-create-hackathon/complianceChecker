@@ -28,6 +28,8 @@ The backend also serves the website on http://localhost:8080.
 3. Under **Team**, add a worker, e.g. `erika` (logs in without a password).
 
 Without a backend: serve `frontend/` statically (e.g. `python3 -m http.server`) and open it with `?mock=1`.
+This browser-only check knows far fewer patterns than the backend mock (it lets test prompts T5–T8 through), see
+[backend.md](backend.md#mock-provider).
 
 ## 4. Extension
 

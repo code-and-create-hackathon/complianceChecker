@@ -3,8 +3,8 @@ package com.compliancechecker.llm;
 import com.compliancechecker.model.CheckResponse;
 
 /**
- * Checks a prompt against compliance rules. Selected with {@code llm.provider}: {@code mock} (default, no AWS) or
- * {@code bedrock}.
+ * Checks a prompt against compliance rules. Selected with {@code llm.provider}: {@code bedrock} (default) or
+ * {@code mock} (offline demo, no AWS).
  */
 public interface LlmClient {
 

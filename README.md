@@ -22,7 +22,7 @@ Requires JDK 21+.
 ```bash
 cd backend
 ADMIN_CODE=choose-a-code AWS_PROFILE=<profile> ./mvnw spring-boot:run   # real check
-LLM_PROVIDER=mock ./mvnw spring-boot:run                                 # offline demo
+ADMIN_CODE=choose-a-code LLM_PROVIDER=mock ./mvnw spring-boot:run       # offline demo
 ```
 
 Open http://localhost:8080, log in as `admin`, publish `Testdata/compliance-guide-musterfinanz.md`, add a worker.
