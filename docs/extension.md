@@ -15,7 +15,9 @@ Manifest V3, built with [WXT](https://wxt.dev). Build and load: [setup.md](setup
 
 - The website ignores it and calls `/api` on its own origin.
 - The extension calls it directly and derives its host permission from it. Rebuild after changing it.
-- `""` = demo mode: local mock check against rules uploaded on the settings page; nothing leaves the browser.
+- `""` = demo mode: local mock check; nothing leaves the browser. Rules must be uploaded on the settings page but
+  are not evaluated: only the few patterns of `frontend/js/shared/mock_llm.js` are found, see
+  [backend.md](backend.md#mock-provider).
 
 ## Code
 

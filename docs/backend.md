@@ -56,6 +56,10 @@ pattern matches with the rule ids of `Testdata/compliance-guide-musterfinanz.md`
 
 All prompts in `Testdata/test-prompts.md` pass as expected (`TestdataPromptsTest`).
 
+This is not the browser demo mode (`?mock=1` on the website, empty `BACKEND_ORIGIN` in the extension): that runs
+`frontend/js/shared/mock_llm.js`, which only finds IBANs, long digit sequences, emails, labelled customer/account
+numbers and *confidential*/*insider* keywords. For a demo without AWS, prefer `LLM_PROVIDER=mock`.
+
 ## History
 
 `GET /api/history` returns the latest 100 checks, newest first. Admin sees all users, workers their own.

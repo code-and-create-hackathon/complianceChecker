@@ -1,5 +1,5 @@
 // Compliance rules persisted in chrome.storage.local (stays on this device, max. 10 MB).
-// Used by the options page (write) and later the background check (read).
+// Demo mode only. Written by the options page, read by the background check.
 import { concatComplianceFiles } from '@shared/compliance_files.js';
 
 const KEY = 'complianceFiles';
