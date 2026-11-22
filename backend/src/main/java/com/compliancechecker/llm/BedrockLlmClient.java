@@ -3,6 +3,8 @@ package com.compliancechecker.llm;
 import com.compliancechecker.model.CheckResponse;
 import com.compliancechecker.model.Problem;
 import com.compliancechecker.model.Severity;
+import com.compliancechecker.service.RuleCategories;
+import com.compliancechecker.service.Sanitiser;
 import com.compliancechecker.service.SensitiveDataScanner;
 import com.compliancechecker.service.SensitiveDataScanner.ScanResult;
 import org.slf4j.Logger;
@@ -49,6 +51,9 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.UnaryOperator;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 /**
@@ -98,6 +103,9 @@ public class BedrockLlmClient implements LlmClient {
 
 	private static final Logger log = LoggerFactory.getLogger(BedrockLlmClient.class);
 
+	/** Two or more spaces or tabs in a row. */
+	private static final Pattern HORIZONTAL_SPACES = Pattern.compile("[ \\t\\u00A0]{2,}");
+
 	/** Instructions for the model, see {@code backend/src/main/resources/prompts/compliance-hardprompt.md}. */
 	private static final String SYSTEM_PROMPT = loadSystemPrompt();
 
@@ -123,16 +131,19 @@ public class BedrockLlmClient implements LlmClient {
 
 	@Override
 	public CheckResponse check(String prompt, String complianceRules) {
-		ScanResult local = scanner.scan(prompt);
+		ScanResult local = widenLocalMatches(scanner.scan(prompt), prompt);
 		String textToCheck = local.redactedText();
+		// Runs of spaces are typing noise; Nova sees them as one, its passages are mapped back to the real text.
+		String textForModel = HORIZONTAL_SPACES.matcher(textToCheck).replaceAll(" ");
+		UnaryOperator<String> locate = passage -> locate(passage, textToCheck, prompt);
 
 		for (int attempt = 1; attempt <= 2; attempt++) {
 			boolean retry = attempt == 2;
 			String marker = UUID.randomUUID().toString();
-			ConverseResponse response = call(buildRequest(textToCheck, complianceRules, marker, retry));
+			ConverseResponse response = call(buildRequest(textForModel, complianceRules, marker, retry));
 			CheckResponse fromModel;
 			try {
-				fromModel = evaluate(response, prompt);
+				fromModel = evaluate(response, locate);
 			}
 			catch (UnusableAnswerException ex) {
 				// Models sometimes answer in plain text instead of calling the tool: ask exactly once more.
@@ -151,20 +162,67 @@ public class BedrockLlmClient implements LlmClient {
 				}
 				continue;
 			}
-			if (fromModel.problems().isEmpty() && !textToCheck.equals(fromModel.improvedVersion())) {
+			if (fromModel.problems().isEmpty() && !textForModel.equals(fromModel.improvedVersion())) {
 				// No problems means the input is returned unchanged; anything else was not reviewed completely.
 				log.warn("Nova result without problems differs from input attempt={} inputChars={} outputChars={} "
-						+ "outputEmpty={} outputIsPrefix={}", attempt, textToCheck.length(),
+						+ "outputEmpty={} outputIsPrefix={}", attempt, textForModel.length(),
 						fromModel.improvedVersion().length(), fromModel.improvedVersion().isEmpty(),
-						!fromModel.improvedVersion().isEmpty() && textToCheck.startsWith(fromModel.improvedVersion()));
+						!fromModel.improvedVersion().isEmpty() && textForModel.startsWith(fromModel.improvedVersion()));
 				if (retry) {
 					throw new InvalidNovaResponseException(fromModel.improvedVersion());
 				}
 				continue;
 			}
-			return merge(local, fromModel, textToCheck);
+			return merge(local, fromModel, textToCheck, complianceRules, prompt);
 		}
 		throw new LlmException("Bedrock did not return a consistent result", MSG_UNUSABLE_ANSWER, null, LlmException.INVALID_RESPONSE);
+	}
+
+	/**
+	 * The local scan may find only part of an oddly spaced value (e.g. the end of {@code D E 8 9 3704-0044 ...}). Such
+	 * a match is widened to the whole value (see Sanitiser.widen), and the rest of the value is removed from the text
+	 * sent to Bedrock as well, so no part of it leaves the server.
+	 */
+	static ScanResult widenLocalMatches(ScanResult scan, String prompt) {
+		String redacted = scan.redactedText();
+		List<Problem> problems = new ArrayList<>();
+		for (Problem p : scan.problems()) {
+			String whole = Sanitiser.widen(prompt, p.location());
+			int at = whole.indexOf(p.location());
+			if (whole.equals(p.location()) || at < 0) {
+				problems.add(p);
+				continue;
+			}
+			String before = whole.substring(0, at);
+			String after = whole.substring(at + p.location().length());
+			Matcher m = Pattern.compile(Pattern.quote(before)
+					+ "(\\[[A-Z_]+_\\d+\\])" + Pattern.quote(after)).matcher(redacted);
+			if (m.find()) {
+				redacted = redacted.substring(0, m.start()) + m.group(1) + redacted.substring(m.end());
+				problems.add(new Problem(p.ruleId(), p.category(), p.severity(), p.message(), whole));
+			}
+			else {
+				problems.add(p);
+			}
+		}
+		return new ScanResult(problems, redacted);
+	}
+
+	/**
+	 * The passage as it really appears in the prompt: Nova saw runs of spaces as one, so a passage is also found with
+	 * different spacing. API.md: anything that does not occur in the prompt (e.g. a placeholder) gives "".
+	 */
+	static String locate(String passage, String textToCheck, String originalPrompt) {
+		if (passage.isBlank()) {
+			return "";
+		}
+		if (originalPrompt.contains(passage)) {
+			return passage;
+		}
+		String flexible = Arrays.stream(passage.strip().split("\\s+")).map(Pattern::quote)
+				.reduce((a, b) -> a + "\\s+" + b).orElse("");
+		Matcher match = Pattern.compile(flexible).matcher(textToCheck);
+		return match.find() && originalPrompt.contains(match.group()) ? match.group() : "";
 	}
 
 	/** True if the random delimiter appears in any field of the answer. */
@@ -263,8 +321,8 @@ public class BedrockLlmClient implements LlmClient {
 		}
 	}
 
-	private static CheckResponse evaluate(ConverseResponse response, String originalPrompt) {
-		return toCheckResponse(findToolInput(response), originalPrompt);
+	private static CheckResponse evaluate(ConverseResponse response, UnaryOperator<String> locate) {
+		return toCheckResponse(findToolInput(response), locate);
 	}
 
 	private static Document findToolInput(ConverseResponse response) {
@@ -284,7 +342,7 @@ public class BedrockLlmClient implements LlmClient {
 	 * Strict about the structure (a list of problems), lenient about single fields: missing details get safe defaults,
 	 * so a sloppy answer still blocks instead of failing.
 	 */
-	private static CheckResponse toCheckResponse(Document input, String originalPrompt) {
+	private static CheckResponse toCheckResponse(Document input, UnaryOperator<String> locate) {
 		if (input == null || !input.isMap()) {
 			throw new UnusableAnswerException("Result is not an object");
 		}
@@ -292,7 +350,7 @@ public class BedrockLlmClient implements LlmClient {
 		boolean modelSaysUnsafe = fields.get("isSafe") != null && fields.get("isSafe").isBoolean()
 				&& !fields.get("isSafe").asBoolean();
 		List<Problem> problems = new ArrayList<>(requireList(fields, "problems").stream()
-				.map(problem -> toProblem(problem, originalPrompt))
+				.map(problem -> toProblem(problem, locate))
 				.toList());
 		String improvedVersion = optionalString(fields.get("improvedVersion"));
 
@@ -303,7 +361,7 @@ public class BedrockLlmClient implements LlmClient {
 		return new CheckResponse(problems, improvedVersion);
 	}
 
-	private static Problem toProblem(Document value, String originalPrompt) {
+	private static Problem toProblem(Document value, UnaryOperator<String> locate) {
 		if (value == null || !value.isMap()) {
 			throw new UnusableAnswerException("Problem is not an object");
 		}
@@ -317,23 +375,53 @@ public class BedrockLlmClient implements LlmClient {
 				toSeverity(optionalString(fields.get("severity"))),
 				message.isEmpty() ? UNSPECIFIED_MESSAGE : message,
 				// API.md: location is copied verbatim from the prompt; anything else (e.g. a placeholder) is dropped.
-				originalPrompt.contains(location) ? location : "");
+				locate.apply(location));
 	}
 
 	/**
-	 * The local findings come first (they are exact), then the model's findings for the rest. The model returns the
-	 * complete input; if it is unchanged, there is no suggestion beyond the local placeholders.
+	 * The local findings come first (they are exact), then the model's findings for the rest. Categories missing in a
+	 * finding come from the compliance file. The sanitised version is built here from the reported passages, so the
+	 * rest of the prompt stays exactly as the user wrote it; only if the model reported no passage at all, its own
+	 * version is used.
 	 */
-	private static CheckResponse merge(ScanResult local, CheckResponse fromModel, String textToCheck) {
-		List<Problem> problems = new ArrayList<>(local.problems());
-		problems.addAll(fromModel.problems());
+	private static CheckResponse merge(ScanResult local, CheckResponse fromModel, String textToCheck,
+			String complianceRules, String originalPrompt) {
+		List<Problem> modelProblems = RuleCategories.fillMissing(fromModel.problems(), complianceRules).stream()
+				.map(p -> widened(p, textToCheck, originalPrompt))
+				.toList();
+		List<Problem> problems = new ArrayList<>(RuleCategories.fillMissing(local.problems(), complianceRules));
+		problems.addAll(modelProblems);
+		problems = Sanitiser.deduplicate(problems);
 		if (problems.isEmpty()) {
 			return new CheckResponse(problems, ""); // API.md: "" = no suggestion
 		}
-		String fromModelVersion = fromModel.improvedVersion().equals(textToCheck) ? "" : fromModel.improvedVersion();
-		String improvedVersion = !fromModelVersion.isBlank() ? fromModelVersion
-				: local.foundSensitiveData() ? local.redactedText() : "";
+		boolean modelHasPassages = modelProblems.stream()
+				.anyMatch(p -> !p.location().isBlank() && textToCheck.contains(p.location()));
+		String improvedVersion;
+		if (modelHasPassages) {
+			improvedVersion = Sanitiser.replacePassages(textToCheck, modelProblems);
+		}
+		else if (local.foundSensitiveData()) {
+			improvedVersion = textToCheck; // the local placeholders, original spacing kept
+		}
+		else if (!fromModel.improvedVersion().isBlank()
+				&& !HORIZONTAL_SPACES.matcher(fromModel.improvedVersion()).replaceAll(" ")
+						.equals(HORIZONTAL_SPACES.matcher(textToCheck).replaceAll(" "))) {
+			improvedVersion = fromModel.improvedVersion(); // violations without a passage: the model's own version
+		}
+		else {
+			improvedVersion = "";
+		}
 		return new CheckResponse(problems, improvedVersion);
+	}
+
+	/** The passage widened to the whole value (odd spacing, see Sanitiser.widen), if it still occurs in the prompt. */
+	private static Problem widened(Problem p, String textToCheck, String originalPrompt) {
+		String location = Sanitiser.widen(textToCheck, p.location());
+		if (location.equals(p.location()) || !originalPrompt.contains(location)) {
+			return p;
+		}
+		return new Problem(p.ruleId(), p.category(), p.severity(), p.message(), location);
 	}
 
 	/** Unknown severities count as critical, so they can never approve a prompt. */

@@ -17,6 +17,7 @@
     .qr-text { color: var(--text-muted); }
     .qr-code { justify-self: center; padding: 16px; background: #fff; border: 1px solid var(--border); border-radius: var(--radius-lg); }
     .qr-code img, .qr-code canvas { display: block; width: min(320px, 70vw); height: auto; }
+    .qr-link { font-size: 13px; overflow-wrap: anywhere; }
     .qr-timer { font-size: 18px; font-weight: 600; color: var(--primary); }
     .qr-error { padding: 12px 16px; border-radius: var(--radius); color: var(--risk); background: var(--risk-bg); text-align: left; }
     .qr-form { display: grid; gap: 6px; text-align: left; }
@@ -32,7 +33,7 @@
       <h1 class="qr-title" id="qr-title">Try the compliance checker</h1>
 
       <!-- Only the administrator can show the QR code. -->
-      <form class="qr-form" id="qr-login" hidden novalidate>
+      <form class="qr-form" id="qr-login" novalidate>
         <p class="qr-text">Log in as administrator to show the QR code.</p>
         <label for="qr-username">Username</label>
         <input id="qr-username" value="admin" autocomplete="username" autocapitalize="none" spellcheck="false">
@@ -45,13 +46,15 @@
         <p class="qr-text">Scan the code with your phone camera. You get 3 minutes to check prompts.</p>
         <div class="qr-code" id="qr-code" role="img" aria-label="QR code for the compliance checker website"></div>
         <p class="qr-timer" id="qr-timer" aria-live="off"></p>
+        <p class="qr-text qr-link">Link in the code: <a id="qr-link" target="_blank" rel="noopener"></a></p>
       </div>
 
       <p class="qr-error" id="qr-error" role="alert" hidden></p>
+      <noscript><p class="qr-error">This page needs JavaScript.</p></noscript>
     </section>
   </main>
 
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <script src="js/vendor/qrcode.min.js"></script>
   <script type="module">
     import { apiFetch } from "./js/shared/api.js";
     import { getSession, isAdmin, login, forgetSession, loginFromHash } from "./js/web/company_accounts.js";
@@ -60,14 +63,29 @@
     const view = document.getElementById("qr-view");
     const timer = document.getElementById("qr-timer");
     const errorBox = document.getElementById("qr-error");
-    const qr = new QRCode(document.getElementById("qr-code"), {
-      width: 640, height: 640, correctLevel: QRCode.CorrectLevel.M,
-    });
+    const link = document.getElementById("qr-link");
+    let qr = null;
     let expiresAt = 0;
 
     function showError(message) {
       errorBox.textContent = message;
       errorBox.hidden = !message;
+    }
+
+    // Any unexpected error is shown instead of leaving an empty card.
+    window.addEventListener("error", (event) => showError(`Page error: ${event.message}`));
+    window.addEventListener("unhandledrejection", (event) => showError(`Page error: ${event.reason?.message || event.reason}`));
+
+    /** Draws the QR code; the library is loaded from js/vendor before this module runs. */
+    function drawCode(text) {
+      if (typeof QRCode !== "function") throw new Error("The QR code library could not be loaded. Reload the page.");
+      qr ??= new QRCode(document.getElementById("qr-code"), {
+        width: 640, height: 640, correctLevel: QRCode.CorrectLevel.M,
+      });
+      qr.clear();
+      qr.makeCode(text);
+      link.href = text;
+      link.textContent = text.length > 60 ? `${text.slice(0, 57)}…` : text;
     }
 
     function showLogin(message = "") {
@@ -82,8 +100,7 @@
         const { key, expiresAt: until } = await apiFetch("/api/auth/demo-key", {
           method: "POST", token: getSession()?.token,
         });
-        qr.clear();
-        qr.makeCode(`${location.origin}/?demo=${encodeURIComponent(key)}`);
+        drawCode(`${location.origin}/?demo=${encodeURIComponent(key)}`);
         expiresAt = Date.parse(until);
         loginForm.hidden = true;
         view.hidden = false;
@@ -127,13 +144,16 @@
       }
     });
 
-    try {
-      await loginFromHash();
-    } catch (error) {
-      showError(error.message || "Login failed.");
+    async function start() {
+      try {
+        await loginFromHash();
+      } catch (error) {
+        showError(error.message || "Login failed.");
+      }
+      if (isAdmin(getSession())) renew();
+      else showLogin();
     }
-    if (isAdmin(getSession())) renew();
-    else showLogin();
+    start();
   </script>
 </body>
 </html>

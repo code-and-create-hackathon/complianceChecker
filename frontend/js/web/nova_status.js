@@ -15,7 +15,7 @@ async function updateStatus() {
   try {
     const response = await fetch("/api/nova/status", {
       cache: "no-store",
-      signal: AbortSignal.timeout(7000),
+      signal: typeof AbortSignal.timeout === "function" ? AbortSignal.timeout(7000) : undefined,
     });
     if (!response.ok) throw new Error("Status not available");
     const data = await response.json();

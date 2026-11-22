@@ -65,8 +65,9 @@ class BedrockLlmClientTest {
 
 		assertThat(result.isSafe()).isFalse();
 		assertThat(result.problems()).containsExactly(
-				new Problem("R-01", Severity.CRITICAL, "Contains a customer name.", "Erika Mustermann"));
-		assertThat(result.improvedVersion()).isEqualTo("Please summarise the account of [CUSTOMER_NAME_1].");
+				new Problem("R-01", "Customer names", Severity.CRITICAL, "Contains a customer name.", "Erika Mustermann"));
+		// Built from the reported passage with the category from the rules, not taken over from the model.
+		assertThat(result.improvedVersion()).isEqualTo("Please summarise the account of [CUSTOMER_NAMES_1].");
 	}
 
 	@Test
@@ -101,7 +102,7 @@ class BedrockLlmClientTest {
 		assertThat(result.problems()).extracting(Problem::ruleId, Problem::location).containsExactly(
 				org.assertj.core.groups.Tuple.tuple("R-02", "DE89 3704 0044 0532 0130 00"),
 				org.assertj.core.groups.Tuple.tuple("R-01", "Erika Mustermann"));
-		assertThat(result.improvedVersion()).isEqualTo("Please summarise the account of [CUSTOMER_NAME_1], IBAN [IBAN_1].");
+		assertThat(result.improvedVersion()).isEqualTo("Please summarise the account of [CUSTOMER_NAMES_1], IBAN [IBAN_1].");
 	}
 
 	@Test
@@ -177,7 +178,7 @@ class BedrockLlmClientTest {
 		CheckResponse result = llmClient.check(PROMPT, RULES);
 
 		assertThat(result.problems()).containsExactly(
-				new Problem("R-01", Severity.CRITICAL, BedrockLlmClient.UNSPECIFIED_MESSAGE, ""));
+				new Problem("R-01", "Customer names", Severity.CRITICAL, BedrockLlmClient.UNSPECIFIED_MESSAGE, ""));
 		assertThat(result.isSafe()).isFalse();
 	}
 
@@ -200,6 +201,39 @@ class BedrockLlmClientTest {
 
 		assertThat(result.isSafe()).isTrue();
 		verify(bedrock, times(2)).converse(any(ConverseRequest.class));
+	}
+
+	@Test
+	void anOddlySpacedValueNeverReachesBedrockInParts() {
+		String prompt = "Call me, his number is D E 8 9 3704-0044 0532 0130 00 thanks";
+		ArgumentCaptor<ConverseRequest> captor = ArgumentCaptor.forClass(ConverseRequest.class);
+		given(bedrock.converse(captor.capture())).willAnswer(call -> {
+			String sent = call.<ConverseRequest>getArgument(0).messages().getFirst().content().getFirst().text();
+			String masked = sent.lines().filter(line -> line.startsWith("Call me")).findFirst().orElseThrow();
+			return toolUse(toolInput(true, List.of(), masked));
+		});
+
+		CheckResponse result = llmClient.check(prompt, RULES);
+
+		String sent = captor.getValue().messages().getFirst().content().getFirst().text();
+		assertThat(sent).doesNotContain("3704").doesNotContain("D E 8 9").contains("Call me, his number is [");
+		assertThat(result.problems().getFirst().location()).isEqualTo("D E 8 9 3704-0044 0532 0130 00");
+	}
+
+	@Test
+	void novaSeesSingleSpacesButThePassageIsMappedBackToTheRealText() {
+		String prompt = "Mail to Erika   Musterfrau about the loan.";
+		given(bedrock.converse(any(ConverseRequest.class))).willReturn(toolUse(toolInput(false,
+				List.of(problem("R-01", "critical", "Name.", "Erika Musterfrau")), "Mail to [X] about the loan.")));
+
+		CheckResponse result = llmClient.check(prompt, RULES);
+
+		ArgumentCaptor<ConverseRequest> captor = ArgumentCaptor.forClass(ConverseRequest.class);
+		verify(bedrock).converse(captor.capture());
+		assertThat(captor.getValue().messages().getFirst().content().getFirst().text())
+				.contains("\nMail to Erika Musterfrau about the loan.\n");
+		assertThat(result.problems().getFirst().location()).isEqualTo("Erika   Musterfrau");
+		assertThat(result.improvedVersion()).isEqualTo("Mail to [CUSTOMER_NAMES_1] about the loan.");
 	}
 
 	@Test

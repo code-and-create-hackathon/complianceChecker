@@ -1,12 +1,16 @@
 package com.compliancechecker.llm;
 
 import com.compliancechecker.model.CheckResponse;
+import com.compliancechecker.model.Problem;
+import com.compliancechecker.service.RuleCategories;
 import com.compliancechecker.service.SensitiveDataScanner;
 import com.compliancechecker.service.SensitiveDataScanner.ScanResult;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
+
+import java.util.List;
 
 /**
  * Simulated compliance check for offline demos without AWS, based on {@link SensitiveDataScanner}. Only active when
@@ -31,9 +35,10 @@ public class MockLlmClient implements LlmClient {
 	@Override
 	public CheckResponse check(String prompt, String complianceRules) {
 		ScanResult scan = scanner.scan(prompt);
-		CheckResponse withSuggestion = new CheckResponse(scan.problems(), scan.redactedText());
+		List<Problem> problems = RuleCategories.fillMissing(scan.problems(), complianceRules);
+		CheckResponse withSuggestion = new CheckResponse(problems, scan.redactedText());
 		// API.md: "" = no suggestion; like the frontend's demo mode, only unsafe prompts get one.
-		return withSuggestion.isSafe() ? new CheckResponse(scan.problems(), "") : withSuggestion;
+		return withSuggestion.isSafe() ? new CheckResponse(problems, "") : withSuggestion;
 	}
 
 	@Override

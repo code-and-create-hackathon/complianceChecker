@@ -25,16 +25,6 @@ public class SensitiveDataScanner {
 
 	private static final String UPPER_WORD = "[A-ZÄÖÜ][a-zäöüß]+";
 
-	/** Category per rule id, as the headings in the test compliance guide. */
-	private static final Map<String, String> CATEGORIES = Map.of(
-			"R-01", "Customer data",
-			"R-02", "Account data",
-			"R-03", "Special categories of personal data",
-			"R-04", "Insider information",
-			"R-05", "Credentials and security information",
-			"R-08", "Corporate clients and business partners",
-			"R-09", "Confidential documents");
-
 	/** Order matters: when matches overlap, the rule listed first wins. */
 	private static final List<Rule> RULES = List.of(
 			// Sentence rules first, so such a sentence is removed as a whole, including anything inside it.
@@ -94,8 +84,8 @@ public class SensitiveDataScanner {
 	public ScanResult scan(String text) {
 		List<Match> matches = findMatches(text);
 		List<Problem> problems = matches.stream()
-				.map(match -> new Problem(match.rule().ruleId(), CATEGORIES.getOrDefault(match.rule().ruleId(), ""),
-						match.rule().severity(), match.rule().message(), match.text()))
+				.map(match -> new Problem(match.rule().ruleId(), match.rule().severity(), match.rule().message(),
+						match.text()))
 				.toList();
 		return new ScanResult(problems, replaceWithPlaceholders(text, matches));
 	}

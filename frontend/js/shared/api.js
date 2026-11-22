@@ -30,7 +30,8 @@ export async function apiFetch(path, { method = "GET", body, token, origin = "" 
   if (token) headers.Authorization = `Bearer ${token}`;
 
   // The timeout covers both the connection and reading the response body.
-  const signal = AbortSignal.timeout(REQUEST_TIMEOUT_MS);
+  // Older browsers (e.g. Safari before 16) have no AbortSignal.timeout: they wait without a time limit.
+  const signal = typeof AbortSignal.timeout === "function" ? AbortSignal.timeout(REQUEST_TIMEOUT_MS) : undefined;
   let res;
   let payload = null;
   try {

@@ -34,7 +34,7 @@ class MockLlmClientTest {
 
 		assertThat(result.isSafe()).isFalse();
 		assertThat(result.problems()).containsExactly(
-				new Problem("R-01", "Customer data", Severity.CRITICAL, "Contains an email address.", "erika.mustermann@example.com"));
+				new Problem("R-01", Severity.CRITICAL, "Contains an email address.", "erika.mustermann@example.com"));
 		assertThat(result.improvedVersion()).isEqualTo("Write a reply to [EMAIL_1] about her loan.");
 	}
 
@@ -52,7 +52,7 @@ class MockLlmClientTest {
 		CheckResponse result = mock.check("Why was card 4111 1111 1111 1111 declined?", RULES);
 
 		assertThat(result.problems()).containsExactly(
-				new Problem("R-02", "Account data", Severity.CRITICAL, "Contains a credit card number.", "4111 1111 1111 1111"));
+				new Problem("R-02", Severity.CRITICAL, "Contains a credit card number.", "4111 1111 1111 1111"));
 		assertThat(result.improvedVersion()).isEqualTo("Why was card [CARD_NUMBER_1] declined?");
 	}
 
@@ -76,7 +76,7 @@ class MockLlmClientTest {
 				"Improve my email. The merger with Example AG is strictly confidential. Keep it short.", RULES);
 
 		assertThat(result.isSafe()).isFalse();
-		assertThat(result.problems()).containsExactly(new Problem("R-09", "Confidential documents", Severity.MEDIUM,
+		assertThat(result.problems()).containsExactly(new Problem("R-09", Severity.MEDIUM,
 				"Contains information marked as confidential.", "The merger with Example AG is strictly confidential."));
 		// The whole sentence goes, so the company name does not stay behind.
 		assertThat(result.improvedVersion()).isEqualTo("Improve my email. [REMOVED_1] Keep it short.");
