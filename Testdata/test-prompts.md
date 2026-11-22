@@ -1,4 +1,4 @@
-# Test Prompts for the Compliance Checker
+# Test Prompts for Four Eyes
 
 All names, numbers and companies are fictional.
 

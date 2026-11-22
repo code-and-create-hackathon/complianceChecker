@@ -16,9 +16,9 @@ import java.util.regex.Pattern;
 /**
  * Finds a few kinds of sensitive data with simple pattern rules and replaces them with numbered placeholders.
  *
- * <p>Used by the mock LLM and as a last safety net before anything is written to the history. It only knows the
- * patterns below and is not a complete compliance check. Rule ids and severities follow
- * {@code Testdata/compliance-guide-musterfinanz.md}, like the frontend's demo mode.
+ * <p>Used by the Bedrock client to replace sensitive values before the prompt leaves the backend, and by the mock LLM
+ * as its whole check. It only knows the patterns below and is not a complete compliance check. Rule ids and
+ * severities follow {@code Testdata/compliance-guide-musterfinanz.md}.
  */
 @Component
 public class SensitiveDataScanner {

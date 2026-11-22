@@ -1,4 +1,5 @@
-// Demo mode: simulates the check service locally in the browser until a backend exists.
+// Browser demo mode (website ?mock=1, extension without BACKEND_ORIGIN): a much smaller pattern check than the
+// backend's SensitiveDataScanner, see docs/backend.md#mock-provider.
 // Response format as in API.md. No data is sent anywhere.
 import { isBlocking } from "./validate.js";
 

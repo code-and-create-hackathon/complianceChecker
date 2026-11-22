@@ -22,6 +22,8 @@
 body { margin: 0; background: var(--canvas); color: var(--ink); }
 main { max-width: 640px; margin: 0 auto; padding: 40px 16px; }
 h1 { font-size: 24px; font-weight: 600; margin: 0 0 6px; color: var(--ink); }
+h1.brand { display: flex; align-items: center; gap: 10px; }
+h1.brand img { border-radius: 7px; }
 .hint { color: var(--ink-2); font-size: 14px; margin: 0 0 20px; display: block; }
 [hidden] { display: none !important; }
 .dropzone {

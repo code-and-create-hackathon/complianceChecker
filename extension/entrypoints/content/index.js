@@ -98,7 +98,7 @@ export default defineContentScript({
         dialog.show({
           tone: 'error',
           title: 'Not logged in',
-          text: 'Log in to the Compliance Checker before sending prompts. The prompt was not sent.',
+          text: 'Log in to Four Eyes before sending prompts. The prompt was not sent.',
           actions: [
             { label: 'Cancel', onClick: finish },
             {

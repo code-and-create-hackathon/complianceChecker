@@ -79,7 +79,9 @@ Policy text: multiple compliance files are concatenated, each prefixed with `<!-
 
 ## General
 
-- All fields required; no `null`; no extra fields.
+- All fields required unless marked `?`; no `null`.
+- Clients must not send extra fields. The backend ignores unknown request fields (e.g. a `compliance` field has no
+  effect); the web client's validator rejects them in responses.
 - The web client aborts a request after 60 s (`REQUEST_TIMEOUT_MS` in `frontend/js/shared/config.js`); the backend should answer within that time.
 
 ## Error responses
@@ -101,7 +103,7 @@ Every error response (status `4xx` or `5xx`) has this body. All texts are fixed 
 | 401    | `UNAUTHORIZED`           | no or invalid/expired login token          |
 | 401    | `LOGIN_FAILED`           | unknown user or wrong admin code           |
 | 403    | `FORBIDDEN`              | a worker called an administrator endpoint  |
-| 409    | `NO_POLICY`              | check before any policy was published      |
+| 409    | `NO_POLICY`              | check or `GET /api/policy` before any policy was published |
 | 409    | `USERNAME_TAKEN`         | the user already exists                    |
 | 405    | `METHOD_NOT_ALLOWED`     | wrong HTTP method                          |
 | 415    | `UNSUPPORTED_MEDIA_TYPE` | `Content-Type` is not `application/json`   |
