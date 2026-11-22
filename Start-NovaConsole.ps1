@@ -16,12 +16,12 @@ if (-not $BackendPath) {
 if ($env:JAVA_HOME) {
     $java = Join-Path $env:JAVA_HOME 'bin\java.exe'
     if (-not (Test-Path -LiteralPath $java -PathType Leaf)) {
-        throw 'java.exe fehlt. Setze JAVA_HOME auf ein JDK ab Version 21.'
+        throw 'java.exe is missing. Set JAVA_HOME to a JDK 21 or newer.'
     }
 } else {
     $javaCommand = Get-Command 'java.exe' -CommandType Application -ErrorAction SilentlyContinue
     if (-not $javaCommand) {
-        throw 'Java fehlt. Verwende ein JDK ab Version 21 und setze JAVA_HOME oder PATH.'
+        throw 'Java is missing. Use a JDK 21 or newer and set JAVA_HOME or PATH.'
     }
     $java = $javaCommand.Source
 }
@@ -30,14 +30,14 @@ if (-not $JarPath) {
     $backend = (Resolve-Path -LiteralPath $BackendPath).Path
     $maven = Join-Path $backend 'mvnw.cmd'
     if (-not (Test-Path -LiteralPath $maven -PathType Leaf)) {
-        throw "Maven Wrapper fehlt unter '$backend'."
+        throw "Maven wrapper is missing in '$backend'."
     }
 
     Push-Location -LiteralPath $backend
     try {
         & $maven '-Dmaven.test.skip=true' 'package'
         if ($LASTEXITCODE -ne 0) {
-            throw "Maven-Build fehlgeschlagen (Exitcode $LASTEXITCODE)."
+            throw "Maven build failed (exit code $LASTEXITCODE)."
         }
     } finally {
         Pop-Location
@@ -47,7 +47,7 @@ if (-not $JarPath) {
     $jars = @(Get-ChildItem -LiteralPath $target -File -Filter '*.jar' |
         Where-Object { $_.Name -notmatch '-(sources|javadoc|tests)\.jar$' })
     if ($jars.Count -ne 1) {
-        throw 'Gib die ausfuehrbare Spring-Boot-JAR mit -JarPath an.'
+        throw 'Pass the executable Spring Boot JAR with -JarPath.'
     }
     $JarPath = $jars[0].FullName
 }

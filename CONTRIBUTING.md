@@ -24,11 +24,11 @@ This is a compliance tool, so let's practise what we preach:
 *   Don't put real customer data or real internal compliance documents into the repo, tests or example prompts. Use made-up sample data.
 
 ### API Changes
-The client/server contract lives in [API.md](API.md). If you change the payload (`prompt`, `compliance`, `isSafe`, `problems`, `improvedVersion`), update `API.md` in the same Pull Request.
+The client/server contract lives in [API.md](API.md). If you change the payload (`prompt`, `compliance`, `isSafe`, `problems`, `improvedVersion`) or the error responses, update `API.md` in the same Pull Request.
 
 ### Architecture & Scope
 See the [README](README.md) for the roadmap and architecture diagrams.
 *   **Stage 1:** website · **Stage 2:** browser extension
-*   LLM: Anthropic, configurable behind a well-defined API · Hosting: AWS
+*   LLM: Amazon Nova via Amazon Bedrock, configurable behind a well-defined API · Hosting: AWS
 *   GDPR is out of scope for now. Please don't expand the scope without agreement.
 

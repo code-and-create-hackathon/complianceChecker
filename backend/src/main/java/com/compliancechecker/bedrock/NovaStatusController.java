@@ -1,6 +1,8 @@
 package com.compliancechecker.bedrock;
 
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import com.compliancechecker.account.PublicEndpoint;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.CacheControl;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -13,45 +15,66 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
 
+/**
+ * Live status for the badge on the website: is the Bedrock endpoint reachable, and how did the last check go. Works
+ * with the default provider (AWS profile) and in Nova console mode (credentials typed in at startup).
+ */
 @RestController
-@ConditionalOnProperty(prefix = "checker.bedrock-console", name = "enabled", havingValue = "true")
 class NovaStatusController {
 
-	private final BedrockNovaClient nova;
+	private final NovaStatus status;
+	private final ObjectProvider<BedrockNovaClient> console;
+	private final String provider;
+	private final String region;
 	private final HttpClient http = HttpClient.newBuilder()
 			.connectTimeout(Duration.ofSeconds(4))
 			.followRedirects(HttpClient.Redirect.NEVER)
 			.build();
 
-	NovaStatusController(BedrockNovaClient nova) {
-		this.nova = nova;
+	NovaStatusController(NovaStatus status, ObjectProvider<BedrockNovaClient> console,
+			@Value("${llm.provider:bedrock}") String provider, @Value("${llm.aws-region:eu-north-1}") String region) {
+		this.status = status;
+		this.console = console;
+		this.provider = provider;
+		this.region = region;
 	}
 
+	/** Public: shows only whether Nova is reachable, also on the login page. */
+	@PublicEndpoint
 	@GetMapping("/api/nova/status")
 	ResponseEntity<Status> status() {
-		var connection = nova.currentConnection();
-		if (connection == null) {
-			return response(new Status("not_configured", "unverified", null));
+		if ("mock".equals(provider)) {
+			return response(new Status("mock", status.lastOutcome(), status.lastLatencyMs()));
 		}
-
-		String endpoint = "https://bedrock-runtime." + connection.region() + ".amazonaws.com/";
+		String activeRegion = region;
+		BedrockNovaClient nova = console.getIfAvailable();
+		if (nova != null) {
+			var connection = nova.currentConnection();
+			if (connection == null) {
+				return response(new Status("not_configured", "unverified", null));
+			}
+			activeRegion = connection.region();
+		}
+		String endpoint = "https://bedrock-runtime." + activeRegion + ".amazonaws.com/";
 		var request = HttpRequest.newBuilder(URI.create(endpoint))
 				.timeout(Duration.ofSeconds(5))
 				.method("HEAD", HttpRequest.BodyPublishers.noBody())
 				.build();
 		try {
 			http.send(request, HttpResponse.BodyHandlers.discarding());
-			return response(new Status("reachable", nova.lastOutcome(), nova.lastLatencyMs()));
-		} catch (IOException ex) {
-			return response(new Status("unreachable", nova.lastOutcome(), nova.lastLatencyMs()));
-		} catch (InterruptedException ex) {
+			return response(new Status("reachable", status.lastOutcome(), status.lastLatencyMs()));
+		}
+		catch (IOException ex) {
+			return response(new Status("unreachable", status.lastOutcome(), status.lastLatencyMs()));
+		}
+		catch (InterruptedException ex) {
 			Thread.currentThread().interrupt();
-			return response(new Status("unreachable", nova.lastOutcome(), nova.lastLatencyMs()));
+			return response(new Status("unreachable", status.lastOutcome(), status.lastLatencyMs()));
 		}
 	}
 
-	private ResponseEntity<Status> response(Status status) {
-		return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(status);
+	private ResponseEntity<Status> response(Status body) {
+		return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(body);
 	}
 
 	record Status(String connection, String lastOutcome, Long lastLatencyMs) { }

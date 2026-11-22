@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>complianceChecker – Try it</title>
+  <meta name="description" content="Scan the QR code to try the compliance checker on your phone for 3 minutes.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="style.css">
+  <style>
+    /* Presenter page for the demo: a QR code that gives the audience 3 minutes on the website. */
+    .qr-page { flex: 1; display: grid; place-items: center; padding: 32px 16px; }
+    .qr-card { width: min(520px, 100%); text-align: center; display: grid; gap: 20px; padding: 32px; }
+    .qr-title { font-size: 28px; font-weight: 700; line-height: 1.25; }
+    .qr-text { color: var(--text-muted); }
+    .qr-code { justify-self: center; padding: 16px; background: #fff; border: 1px solid var(--border); border-radius: var(--radius-lg); }
+    .qr-code img, .qr-code canvas { display: block; width: min(320px, 70vw); height: auto; }
+    .qr-timer { font-size: 18px; font-weight: 600; color: var(--primary); }
+    .qr-error { padding: 12px 16px; border-radius: var(--radius); color: var(--risk); background: var(--risk-bg); text-align: left; }
+    .qr-form { display: grid; gap: 6px; text-align: left; }
+    .qr-form label { font-size: 14px; font-weight: 600; margin-top: 6px; }
+    .qr-form input { padding: 8px 10px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
+    .qr-form input:focus-visible { outline: none; box-shadow: var(--ring); border-color: var(--primary); }
+    .qr-form button { margin-top: 12px; padding: 10px 14px; border: 0; border-radius: var(--radius); background: var(--primary); color: #fff; font-weight: 600; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <main class="qr-page">
+    <section class="card qr-card" aria-labelledby="qr-title">
+      <h1 class="qr-title" id="qr-title">Try the compliance checker</h1>
+
+      <!-- Only the administrator can show the QR code. -->
+      <form class="qr-form" id="qr-login" hidden novalidate>
+        <p class="qr-text">Log in as administrator to show the QR code.</p>
+        <label for="qr-username">Username</label>
+        <input id="qr-username" value="admin" autocomplete="username" autocapitalize="none" spellcheck="false">
+        <label for="qr-admin-code">Admin code</label>
+        <input id="qr-admin-code" type="password" autocomplete="current-password">
+        <button type="submit">Show QR code</button>
+      </form>
+
+      <div id="qr-view" hidden>
+        <p class="qr-text">Scan the code with your phone camera. You get 3 minutes to check prompts.</p>
+        <div class="qr-code" id="qr-code" role="img" aria-label="QR code for the compliance checker website"></div>
+        <p class="qr-timer" id="qr-timer" aria-live="off"></p>
+      </div>
+
+      <p class="qr-error" id="qr-error" role="alert" hidden></p>
+    </section>
+  </main>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <script type="module">
+    import { apiFetch } from "./js/shared/api.js";
+    import { getSession, isAdmin, login, forgetSession, loginFromHash } from "./js/web/company_accounts.js";
+
+    const loginForm = document.getElementById("qr-login");
+    const view = document.getElementById("qr-view");
+    const timer = document.getElementById("qr-timer");
+    const errorBox = document.getElementById("qr-error");
+    const qr = new QRCode(document.getElementById("qr-code"), {
+      width: 640, height: 640, correctLevel: QRCode.CorrectLevel.M,
+    });
+    let expiresAt = 0;
+
+    function showError(message) {
+      errorBox.textContent = message;
+      errorBox.hidden = !message;
+    }
+
+    function showLogin(message = "") {
+      view.hidden = true;
+      loginForm.hidden = false;
+      showError(message);
+    }
+
+    /** Fetches a new 3-minute key and shows it as QR code. The page opens with this page's own address. */
+    async function renew() {
+      try {
+        const { key, expiresAt: until } = await apiFetch("/api/auth/demo-key", {
+          method: "POST", token: getSession()?.token,
+        });
+        qr.clear();
+        qr.makeCode(`${location.origin}/?demo=${encodeURIComponent(key)}`);
+        expiresAt = Date.parse(until);
+        loginForm.hidden = true;
+        view.hidden = false;
+        showError("");
+      } catch (error) {
+        if (error.status === 401 || error.status === 403) {
+          forgetSession();
+          showLogin("Please log in as administrator.");
+        } else {
+          showError(error.message || "Could not create a QR code.");
+        }
+      }
+    }
+
+    // Countdown; a new code is fetched as soon as the current one expires.
+    setInterval(() => {
+      if (view.hidden || !expiresAt) return;
+      const left = Math.max(0, Math.round((expiresAt - Date.now()) / 1000));
+      timer.textContent = `New code in ${Math.floor(left / 60)}:${String(left % 60).padStart(2, "0")}`;
+      if (left === 0) {
+        expiresAt = 0;
+        renew();
+      }
+    }, 1000);
+
+    loginForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      try {
+        const session = await login(
+          document.getElementById("qr-username").value.trim(),
+          document.getElementById("qr-admin-code").value,
+        );
+        if (!isAdmin(session)) {
+          forgetSession();
+          showLogin("Only the administrator can show the QR code.");
+          return;
+        }
+        renew();
+      } catch (error) {
+        showError(error.message || "Login failed.");
+      }
+    });
+
+    try {
+      await loginFromHash();
+    } catch (error) {
+      showError(error.message || "Login failed.");
+    }
+    if (isAdmin(getSession())) renew();
+    else showLogin();
+  </script>
+</body>
+</html>

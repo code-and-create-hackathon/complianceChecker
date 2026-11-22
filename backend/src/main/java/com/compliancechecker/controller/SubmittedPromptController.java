@@ -1,5 +1,6 @@
 package com.compliancechecker.controller;
 
+import com.compliancechecker.account.AdminOnly;
 import com.compliancechecker.history.SubmittedPrompt;
 import com.compliancechecker.history.SubmittedPromptRepository;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -14,6 +15,8 @@ public class SubmittedPromptController {
 		this.prompts = prompts;
 	}
 
+	/** Administrator only: the stored prompts contain the original, unredacted text. */
+	@AdminOnly
 	@GetMapping("/api/prompts")
 	public List<SubmittedPrompt> latest() {
 		return prompts.findTop100ByOrderByCreatedAtDescIdDesc();

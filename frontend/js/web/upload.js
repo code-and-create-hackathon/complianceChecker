@@ -20,6 +20,9 @@ const complianceError = $("compliance-error");
  */
 let loadGeneration = 0;
 
+/** Called after every change of the loaded files (set in initUpload). */
+let onFilesChanged = () => {};
+
 // ---------- Messages ----------
 
 export function setComplianceError(message) {
@@ -63,6 +66,14 @@ function setFiles(files) {
   state.complianceFiles = files;
   renderFiles();
   resetResult();
+  onFilesChanged();
+}
+
+/** Removes all loaded files, also those still being read. */
+export function clearFiles() {
+  loadGeneration += 1; // files still loading must not reappear
+  setComplianceError("");
+  setFiles([]);
 }
 
 // ---------- Loading ----------
@@ -103,7 +114,9 @@ async function loadFiles(fileListLike) {
 
 // ---------- Events ----------
 
-export function initUpload() {
+/** @param {{onFilesChanged?: () => void}} [options] */
+export function initUpload({ onFilesChanged: callback } = {}) {
+  if (callback) onFilesChanged = callback;
   fileInput.addEventListener("change", () => loadFiles(fileInput.files));
 
   dropzone.addEventListener("click", (event) => {
@@ -140,9 +153,7 @@ export function initUpload() {
   });
 
   fileClear.addEventListener("click", () => {
-    loadGeneration += 1; // files still loading must not reappear after "Remove all"
-    setComplianceError("");
-    setFiles([]);
+    clearFiles();
     fileInput.focus();
   });
 

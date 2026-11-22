@@ -22,11 +22,43 @@
         </svg>
         <span class="brand-name">compliance<strong>Checker</strong></span>
       </a>
-      <span class="badge nova-status" id="nova-status" role="status" aria-live="polite">Nova wird geprüft …</span>
+      <div class="topbar-right">
+        <span class="badge nova-status" id="nova-status" role="status" aria-live="polite">Checking Nova …</span>
+        <span class="badge" id="demo-badge" title="Without a backend: the check runs locally in the browser." hidden>Demo mode</span>
+        <div class="account" id="account" hidden>
+          <span class="account-name" id="account-name"></span>
+          <span class="badge" id="account-role"></span>
+          <button type="button" class="link-button" id="logout">Log out</button>
+        </div>
+      </div>
     </div>
   </header>
 
-  <main class="container workspace">
+  <!-- Backend mode only: shown until the user is logged in. -->
+  <main class="container login-view" id="login-view" hidden>
+    <section class="card login-card" aria-labelledby="login-title">
+      <h1 class="card-title" id="login-title">Log in</h1>
+      <form id="login-form" novalidate>
+        <div class="field">
+          <label class="field-label" for="login-username">Username</label>
+          <input class="input" id="login-username" name="username" autocomplete="username"
+                 autocapitalize="none" spellcheck="false" aria-describedby="login-error">
+        </div>
+        <div class="field">
+          <label class="field-label" for="login-code">
+            Admin code <span class="field-optional">(administrator only)</span>
+          </label>
+          <input class="input" id="login-code" name="admin-code" type="password" autocomplete="current-password">
+        </div>
+        <p class="field-error" id="login-error" role="alert" hidden></p>
+        <button type="submit" class="button button-primary button-block" id="login-submit">Log in</button>
+      </form>
+      <!-- TODO(security): demo login without passwords; replace with the company's single sign-on. -->
+      <p class="login-note">Demo login: workers need no password. Your administrator creates your account.</p>
+    </section>
+  </main>
+
+  <main class="container workspace" id="workspace" hidden>
     <section class="card" aria-labelledby="page-title">
       <h1 class="card-title" id="page-title">Check prompt</h1>
 
@@ -34,9 +66,20 @@
         <div class="field">
           <div class="field-label">
             <span class="field-step" aria-hidden="true">1</span>
-            <label for="compliance">Compliance rules</label>
+            <label for="compliance" id="rules-label">Compliance rules</label>
           </div>
 
+          <!-- Backend mode: the published company policy (everyone) and publishing a new one (administrator). -->
+          <div class="policy-info" id="policy-info" hidden>
+            <p class="policy-status" id="policy-status"></p>
+            <details class="policy-details" id="policy-details" hidden>
+              <summary>Show rules</summary>
+              <pre class="policy-text" id="policy-text"></pre>
+            </details>
+          </div>
+
+          <!-- Upload: demo mode (rules for this page only) and administrator (new policy to publish). -->
+          <div id="rules-upload">
           <div class="dropzone" id="dropzone">
             <input type="file" id="compliance" name="compliance" class="visually-hidden"
                    accept=".md,.markdown,.txt,text/markdown,text/plain" multiple
@@ -72,6 +115,14 @@
           </template>
 
           <p class="field-error" id="compliance-error" hidden></p>
+
+          <div class="policy-publish" id="policy-publish" hidden>
+            <button type="button" class="button button-secondary" id="policy-publish-button" disabled>
+              <span class="button-label">Publish as company policy</span>
+            </button>
+            <span class="policy-publish-message" id="policy-publish-message" role="status"></span>
+          </div>
+          </div>
         </div>
 
         <div class="field">
@@ -155,10 +206,10 @@
              Shown only for an unsafe result with a non-empty suggestion; hidden again on any change. -->
         <div class="result-bottom" id="suggestion-actions" hidden>
           <div class="result-bottom-head">
-            <h3 class="result-subtitle" id="suggestion-title">Bereinigte Version</h3>
-            <button type="button" class="result-action" data-copy="suggestion" id="copy-suggestion"><span class="button-label">Kopieren</span></button>
+            <h3 class="result-subtitle" id="suggestion-title">Sanitised version</h3>
+            <button type="button" class="result-action" data-copy="suggestion" id="copy-suggestion"><span class="button-label">Copy</span></button>
           </div>
-          <p id="suggestion-unavailable" hidden>Das Backend hat keine bereinigte Version zurückgegeben.</p>
+          <p id="suggestion-unavailable" hidden>The backend did not return a sanitised version.</p>
           <div id="result-improved"><pre class="sanitized" id="result-improved-text"></pre></div>
         </div>
       </div>
@@ -172,7 +223,7 @@
             <p class="status-title">Check failed</p>
             <p class="status-text" id="error"></p>
             <div id="nova-response-diagnostic" hidden>
-              <p>Ungeprüfte Nova-Antwort:</p>
+              <p>Unchecked Nova answer:</p>
               <pre class="sanitized" id="nova-response-text"></pre>
             </div>
           </div>
@@ -200,6 +251,22 @@
       <p class="visually-hidden" id="sr-status" role="status" aria-live="polite"></p>
     </section>
   </main>
+
+  <!-- Administrator only. -->
+  <section class="container team" id="team" aria-labelledby="team-title" hidden>
+    <div class="card">
+      <h2 class="card-title" id="team-title">Team</h2>
+      <p class="team-hint">Add a worker by username. They can log in right away and are checked against the company policy.</p>
+      <form class="user-form" id="user-form" novalidate>
+        <label class="visually-hidden" for="user-name">Username of the new worker</label>
+        <input class="input" id="user-name" placeholder="e.g. erika.mustermann" autocomplete="off"
+               autocapitalize="none" spellcheck="false" aria-describedby="user-error">
+        <button type="submit" class="button button-primary">Add worker</button>
+      </form>
+      <p class="field-error" id="user-error" hidden></p>
+      <ul class="user-list" id="user-list"></ul>
+    </div>
+  </section>
 
   <section class="container how" aria-labelledby="how-title">
     <h2 class="how-title" id="how-title">How it works</h2>

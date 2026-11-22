@@ -1,8 +1,9 @@
 package com.compliancechecker.history;
 
+import com.compliancechecker.history.HistoryEntry.Finding;
 import com.compliancechecker.model.CheckResponse;
-import com.compliancechecker.model.ProblemCategory;
-import com.compliancechecker.service.SensitiveDataScanner;
+import com.compliancechecker.model.Problem;
+import com.compliancechecker.model.Severity;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.dao.DataAccessResourceFailureException;
@@ -25,59 +26,56 @@ class HistoryServiceTest {
 	private static final Instant NOW = Instant.parse("2026-11-21T10:00:00Z");
 
 	private final HistoryRepository repository = mock(HistoryRepository.class);
-	private final HistoryService historyService =
-			new HistoryService(repository, new SensitiveDataScanner(), Clock.fixed(NOW, ZoneOffset.UTC));
+	private final HistoryService historyService = new HistoryService(repository, Clock.fixed(NOW, ZoneOffset.UTC));
 
 	@Test
-	void storesTimeResultCategoriesAndSanitizedVersion() {
-		historyService.record("Reply to erika.mustermann@example.com", unsafe("Reply to [EMAIL]"));
+	void storesTimeResultAndFindingsOnly() {
+		Problem problem = new Problem("R-01", Severity.CRITICAL, "Contains an email.", "erika.mustermann@example.com");
+
+		historyService.record(new CheckResponse(List.of(problem), "Reply to [EMAIL_1]"), "erika");
 
 		HistoryEntry saved = savedEntry();
 		assertThat(saved.getCreatedAt()).isEqualTo(NOW);
 		assertThat(saved.isSafe()).isFalse();
-		assertThat(saved.getCategories()).containsExactly(ProblemCategory.CUSTOMER_DATA);
-		assertThat(saved.getImprovedVersion()).isEqualTo("Reply to [EMAIL]");
+		assertThat(saved.getFindings()).containsExactly(new Finding("R-01", Severity.CRITICAL));
 	}
 
 	@Test
-	void doesNotStoreTextIdenticalToOriginalPrompt() {
-		String prompt = "Explain ETFs in simple words.";
-		historyService.record(prompt, new CheckResponse(true, List.of(), List.of(), prompt, true));
+	void storesNoTextAtAll() {
+		Problem problem = new Problem("R-01", Severity.CRITICAL, "Contains a name.", "Erika Mustermann");
 
-		HistoryEntry saved = savedEntry();
-		assertThat(saved.isSafe()).isTrue();
-		assertThat(saved.getImprovedVersion()).isNull();
+		historyService.record(new CheckResponse(List.of(problem), "Write to [NAME_1] about Erika's loan"), "erika");
+
+		// The entity has no field for any text; its string form must not contain any either.
+		assertThat(savedEntry().toString()).doesNotContain("Mustermann").doesNotContain("Write to");
+		assertThat(HistoryEntry.class.getDeclaredFields()).extracting("name")
+				.doesNotContain("improvedVersion", "prompt", "location", "message");
 	}
 
 	@Test
-	void doesNotStoreSanitizedVersionThatStillContainsSensitiveData() {
-		// e.g. an LLM that replaced the name but kept the phone number
-		historyService.record("Call Erika Mustermann at +49 30 1234567",
-				unsafe("Call [CUSTOMER_NAME] at +49 30 1234567"));
+	void storesOnlySafeLookingRuleIds() {
+		// An LLM could put free text into ruleId; only id-like values are stored.
+		Problem odd = new Problem("Customer Erika Mustermann", Severity.HIGH, "Contains a name.", "");
 
-		HistoryEntry saved = savedEntry();
-		assertThat(saved.getImprovedVersion()).isNull();
-		assertThat(saved.getCategories()).containsExactly(ProblemCategory.CUSTOMER_DATA);
+		historyService.record(new CheckResponse(List.of(odd), ""), "erika");
+
+		assertThat(savedEntry().getFindings()).containsExactly(new Finding(Problem.UNSPECIFIED_RULE, Severity.HIGH));
 	}
 
 	@Test
-	void doesNotStoreOversizedText() {
-		String tooLong = "x".repeat(HistoryEntry.MAX_IMPROVED_VERSION_LENGTH + 1);
-		historyService.record("original", unsafe(tooLong));
+	void lowSeverityNoticeIsSafe() {
+		Problem notice = new Problem("R-10", Severity.LOW, "Just a notice.", "");
 
-		assertThat(savedEntry().getImprovedVersion()).isNull();
+		historyService.record(new CheckResponse(List.of(notice), ""), "erika");
+
+		assertThat(savedEntry().isSafe()).isTrue();
 	}
 
 	@Test
 	void databaseFailureDoesNotFailTheCheck() {
 		given(repository.save(any())).willThrow(new DataAccessResourceFailureException("db down"));
 
-		assertThatNoException().isThrownBy(() -> historyService.record("prompt", unsafe("[EMAIL]")));
-	}
-
-	private static CheckResponse unsafe(String improvedVersion) {
-		return new CheckResponse(false, List.of("Contains an email address."), List.of(ProblemCategory.CUSTOMER_DATA),
-				improvedVersion, true);
+		assertThatNoException().isThrownBy(() -> historyService.record(new CheckResponse(List.of(), ""), "erika"));
 	}
 
 	private HistoryEntry savedEntry() {

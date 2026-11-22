@@ -47,7 +47,7 @@ class BedrockConsole {
 			}
 			nova.activate(connection);
 			openInterface();
-			System.out.printf("Nova-Konsole bereit (%s). /exit schließt die Eingabe.%n",
+			System.out.printf("Nova console ready (%s). /exit closes the input, /token changes the credentials.%n",
 					connection.region());
 			String prompt;
 			while ((prompt = readLine(console, input)) != null) {
@@ -63,14 +63,14 @@ class BedrockConsole {
 					if (replacement != null) {
 						connection = replacement;
 						nova.activate(connection);
-						System.out.printf("Zugangsdaten aktualisiert (%s).%n", connection.region());
+						System.out.printf("Credentials updated (%s).%n", connection.region());
 					}
 					continue;
 				}
 				sendAndPrint(prompt, connection);
 			}
 		} catch (IOException ex) {
-			System.err.println("Warnung: Terminaleingabe nicht verfügbar.");
+			System.err.println("Warning: terminal input is not available.");
 		}
 	}
 
@@ -83,7 +83,7 @@ class BedrockConsole {
 				Desktop.getDesktop().browse(URI.create(url));
 			}
 		} catch (IOException | UnsupportedOperationException | SecurityException ex) {
-			System.err.println("Frontend bitte im Browser öffnen: " + url);
+			System.err.println("Please open the frontend in the browser: " + url);
 		}
 	}
 
@@ -98,26 +98,26 @@ class BedrockConsole {
 
 	private BedrockNovaClient.Connection readConnection(Console console) {
 		if (console == null) {
-			System.err.println("Warnung: Verwende ein interaktives PowerShell-Terminal für die Zugangsdaten.");
+			System.err.println("Warning: use an interactive terminal to enter the credentials.");
 			return null;
 		}
-		String key = readSecret(console, "AWS-Zugriffsschlüssel-ID oder Bedrock-API-Schlüssel: ");
+		String key = readSecret(console, "AWS access key ID or Bedrock API key: ");
 		if (key.isEmpty()) {
-			System.err.println("Warnung: Gib einen AWS- oder Bedrock-Schlüssel ein.");
+			System.err.println("Warning: enter an AWS or Bedrock key.");
 			return null;
 		}
 		boolean temporary = key.startsWith("ASIA");
 		if (!temporary && !key.startsWith("AKIA")) {
 			return connect(key, null, null);
 		}
-		String secret = readSecret(console, "Geheimer AWS-Zugriffsschlüssel: ");
+		String secret = readSecret(console, "AWS secret access key: ");
 		if (secret.isEmpty()) {
-			System.err.println("Warnung: Der geheime AWS-Zugriffsschlüssel fehlt.");
+			System.err.println("Warning: the AWS secret access key is missing.");
 			return null;
 		}
-		String sessionToken = temporary ? readSecret(console, "AWS-Sitzungstoken: ") : null;
+		String sessionToken = temporary ? readSecret(console, "AWS session token: ") : null;
 		if (temporary && sessionToken.isEmpty()) {
-			System.err.println("Warnung: Für temporäre AWS-Schlüssel ist ein Sitzungstoken erforderlich.");
+			System.err.println("Warning: temporary AWS keys need a session token.");
 			return null;
 		}
 		return connect(key, secret, sessionToken);
@@ -127,9 +127,9 @@ class BedrockConsole {
 		try {
 			return nova.connect(key, secret, sessionToken);
 		} catch (BedrockNovaClient.UnsupportedNovaRegionException ex) {
-			System.err.println("Warnung: " + ex.getMessage());
+			System.err.println("Warning: " + ex.getMessage());
 		} catch (SdkException | IllegalArgumentException ex) {
-			System.err.println("Warnung: Bedrock-Verbindung konnte nicht eingerichtet werden.");
+			System.err.println("Warning: the Bedrock connection could not be set up.");
 		}
 		return null;
 	}
@@ -152,14 +152,14 @@ class BedrockConsole {
 		} catch (BedrockRuntimeException ex) {
 			int status = ex.statusCode();
 			if (status == 401 || status == 403) {
-				System.err.printf("Warnung: AWS verweigert den Bedrock-Zugriff in %s (HTTP %d). "
-						+ "Prüfe die Zugangsdaten und bedrock:InvokeModel. Wechsel mit /token.%n", connection.region(), status);
+				System.err.printf("Warning: AWS denies Bedrock access in %s (HTTP %d). "
+						+ "Check the credentials and bedrock:InvokeModel. Change them with /token.%n", connection.region(), status);
 			} else {
-				System.err.printf("Warnung: Bedrock meldet HTTP %d. Die Eingabe bleibt offen.%n", status);
+				System.err.printf("Warning: Bedrock answered HTTP %d. The input stays open.%n", status);
 			}
 		} catch (IOException | SdkException | IllegalArgumentException ex) {
-			System.err.println("Warnung: Bedrock ist nicht erreichbar oder die Antwort ist unbrauchbar. "
-					+ "Die Eingabe bleibt offen.");
+			System.err.println("Warning: Bedrock is not reachable or the answer is unusable. "
+					+ "The input stays open.");
 		}
 	}
 }

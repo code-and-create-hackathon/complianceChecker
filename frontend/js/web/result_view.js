@@ -1,6 +1,7 @@
 // Result panel: states (empty, loading, status, error), counts, findings list and the hidden messages.
-import { $, announce } from "./dom.js";
+import { isMockMode } from "./mock_mode.js";
 import { isBlocking } from "../shared/validate.js";
+import { $, announce } from "./dom.js";
 import { plural } from "../shared/format.js";
 import { state } from "./state.js";
 import { showHighlights, clearHighlights } from "./prompt_highlight.js";
@@ -30,6 +31,8 @@ const messageProblems = $("result-problems");
 const messageImproved = $("result-improved-text");
 const messageRaw = $("message-raw");
 
+const SEVERITY_LABELS = { critical: "Critical", high: "High", medium: "Medium", low: "Low" };
+
 function element(tag, className, text) {
   const el = document.createElement(tag);
   el.className = className;
@@ -43,14 +46,13 @@ function renderFindings(problems) {
     ...problems.map((p, index) => {
       const li = element("li", `finding ${isBlocking(p) ? "is-crit" : "is-warn"}`, "");
       const head = element("span", "finding-head", "");
-      head.append(
-        element("span", "finding-rule", p.ruleId),
-        element("span", "severity-badge", p.category || p.severity),
-      );
+      head.append(element("span", "finding-rule", p.ruleId));
+      if (p.category) head.append(element("span", "finding-category", p.category));
+      head.append(element("span", "severity-badge", SEVERITY_LABELS[p.severity] ?? p.severity));
       const body = element("span", "finding-body", "");
       body.append(head);
       if (p.location) body.append(element("span", "finding-location", `“${p.location}”`));
-      if (p.message) body.append(element("span", "finding-message", p.message));
+      body.append(element("span", "finding-message", p.message));
       li.append(element("span", "finding-num", String(index + 1)), body);
       return li;
     }),
@@ -84,7 +86,9 @@ function fillMessages(data) {
   messageProblems.replaceChildren(
     ...problems.map((p) => {
       const li = document.createElement("li");
-      li.textContent = [p.ruleId, p.category, p.severity, p.message, p.location].filter(Boolean).join(" · ");
+      li.textContent = [p.ruleId, p.category, p.severity, p.message, p.location && `"${p.location}"`]
+        .filter(Boolean)
+        .join(" · ");
       return li;
     }),
   );
@@ -110,10 +114,7 @@ function showStatus(isSafe, violations, notices, hasSuggestion) {
   }
 
   safeActions.hidden = !isSafe;
-  suggestionActions.hidden = isSafe;
-  $("suggestion-unavailable").hidden = hasSuggestion;
-  $("result-improved").hidden = !hasSuggestion;
-  $("copy-suggestion").hidden = !hasSuggestion;
+  suggestionActions.hidden = isSafe || !hasSuggestion;
   setState("status");
   announce(`Result: ${statusTitle.textContent}.`);
 }
@@ -154,27 +155,40 @@ export function resetResult() {
   setState("empty");
 }
 
+/** Sanitised-version area as for a normal result (the incomplete case changes it). */
+function resetSuggestionArea() {
+  $("suggestion-title").textContent = "Sanitised version";
+  $("suggestion-unavailable").hidden = true;
+  $("result-improved").hidden = false;
+  $("copy-suggestion").hidden = false;
+}
+
+/** Nova's answer could not be verified, also on the retry: not approved, its unchecked output is shown. */
+function showIncomplete(data) {
+  fillMessages(data);
+  clearHighlights();
+  statusBox.classList.remove("is-safe");
+  statusBox.classList.add("is-risk");
+  statusTitle.textContent = "Check not completed";
+  statusText.textContent = "Nova returned an incomplete or contradictory answer. The prompt is not approved.";
+  safeActions.hidden = true;
+  suggestionActions.hidden = false;
+  $("suggestion-title").textContent = "Unchecked Nova answer";
+  $("suggestion-unavailable").hidden = Boolean(data.improvedVersion);
+  $("result-improved").hidden = !data.improvedVersion;
+  $("copy-suggestion").hidden = true;
+  setState("status");
+  announce(statusTitle.textContent);
+}
+
 /** Shows `state.result`, which site.js sets before calling this. */
 export function renderResult() {
   const { response: data, request } = state.result;
   if (data.verification === "incomplete") {
-    fillMessages(data);
-    clearHighlights();
-    statusBox.classList.remove("is-safe");
-    statusBox.classList.add("is-risk");
-    statusTitle.textContent = "Bewertung nicht abgeschlossen";
-    statusText.textContent = "Nova hat eine unvollständige oder widersprüchliche Antwort geliefert. Der Prompt ist nicht freigegeben.";
-    safeActions.hidden = true;
-    suggestionActions.hidden = false;
-    $("suggestion-title").textContent = "Ungeprüfte Nova-Antwort";
-    $("suggestion-unavailable").hidden = Boolean(data.improvedVersion);
-    $("result-improved").hidden = !data.improvedVersion;
-    $("copy-suggestion").hidden = true;
-    setState("status");
-    announce(statusTitle.textContent);
+    showIncomplete(data);
     return;
   }
-  $("suggestion-title").textContent = "Bereinigte Version";
+  resetSuggestionArea();
   const { prompt } = request; // the problems' locations are searched in the checked prompt
   const problems = fillMessages(data);
   showHighlights(prompt, problems);
@@ -185,12 +199,12 @@ export function renderResult() {
 }
 
 export function renderError(error) {
-  const message = error.message || "Unknown error.";
+  let message = error.message || "Unknown error.";
+  // Only when no backend answered at all; an error status comes with the backend's own explanation.
+  if (!isMockMode() && error.status === undefined) {
+    message += " Without a backend, open the page with ?mock=1 to use demo mode.";
+  }
   errorText.textContent = message;
-  const diagnostic = $("nova-response-diagnostic");
-  const response = typeof error.novaResponse === "string" ? error.novaResponse : "";
-  $("nova-response-text").textContent = response;
-  diagnostic.hidden = !response;
   setState("error");
   announce(`Check failed. ${message}`);
 }

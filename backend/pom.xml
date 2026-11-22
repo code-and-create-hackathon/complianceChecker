@@ -45,13 +45,13 @@
 			<artifactId>spring-boot-starter-data-jpa</artifactId>
 		</dependency>
 
-		<!-- Amazon Bedrock (Claude). Credentials come from the default AWS provider chain, never from code. -->
+		<!-- Amazon Bedrock (Amazon Nova). Credentials come from the default AWS provider chain, never from code. -->
 		<dependency>
 			<groupId>software.amazon.awssdk</groupId>
 			<artifactId>bedrockruntime</artifactId>
 		</dependency>
 
-		<!-- H2 file DB for the MVP; PostgreSQL driver is ready for a later switch via profile. -->
+		<!-- H2 file DB for the MVP; PostgreSQL driver is ready for a later switch via HISTORY_DB_URL. -->
 		<dependency>
 			<groupId>com.h2database</groupId>
 			<artifactId>h2</artifactId>

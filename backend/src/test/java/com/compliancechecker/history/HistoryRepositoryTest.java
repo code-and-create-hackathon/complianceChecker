@@ -1,6 +1,7 @@
 package com.compliancechecker.history;
 
-import com.compliancechecker.model.ProblemCategory;
+import com.compliancechecker.history.HistoryEntry.Finding;
+import com.compliancechecker.model.Severity;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
@@ -32,20 +33,19 @@ class HistoryRepositoryTest {
 	}
 
 	@Test
-	void storesCategoriesAndNullableText() {
-		repository.save(new HistoryEntry(Instant.parse("2026-11-21T08:00:00Z"), false,
-				List.of(ProblemCategory.CUSTOMER_DATA, ProblemCategory.ACCOUNT_DATA), null));
-		repository.save(new HistoryEntry(Instant.parse("2026-11-21T09:00:00Z"), true, List.of(), null));
+	void storesFindings() {
+		repository.save(new HistoryEntry(Instant.parse("2026-11-21T08:00:00Z"), "erika", false,
+				List.of(new Finding("R-01", Severity.CRITICAL), new Finding("R-09", Severity.MEDIUM))));
+		repository.save(new HistoryEntry(Instant.parse("2026-11-21T09:00:00Z"), "erika", true, List.of()));
 
 		List<HistoryEntry> entries = repository.findTop100ByOrderByCreatedAtDescIdDesc();
 
-		assertThat(entries.get(0).getCategories()).isEmpty();
-		assertThat(entries.get(1).getCategories())
-				.containsExactly(ProblemCategory.CUSTOMER_DATA, ProblemCategory.ACCOUNT_DATA);
-		assertThat(entries.get(1).getImprovedVersion()).isNull();
+		assertThat(entries.get(0).getFindings()).isEmpty();
+		assertThat(entries.get(1).getFindings())
+				.containsExactly(new Finding("R-01", Severity.CRITICAL), new Finding("R-09", Severity.MEDIUM));
 	}
 
 	private static HistoryEntry entry(String createdAt) {
-		return new HistoryEntry(Instant.parse(createdAt), false, List.of(ProblemCategory.OTHER), "text");
+		return new HistoryEntry(Instant.parse(createdAt), "erika", false, List.of(new Finding("R-02", Severity.CRITICAL)));
 	}
 }

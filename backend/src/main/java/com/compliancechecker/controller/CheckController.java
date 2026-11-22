@@ -1,11 +1,13 @@
 package com.compliancechecker.controller;
 
+import com.compliancechecker.account.AppUser;
+import com.compliancechecker.account.AuthInterceptor;
 import com.compliancechecker.model.CheckRequest;
 import com.compliancechecker.model.CheckResponse;
-import com.compliancechecker.model.ApiCheckResponse;
 import com.compliancechecker.service.ComplianceService;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestAttribute;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -19,8 +21,8 @@ public class CheckController {
 	}
 
 	@PostMapping("/api/check")
-	public ApiCheckResponse check(@Valid @RequestBody CheckRequest request) {
-		CheckResponse result = complianceService.check(request.prompt(), request.compliance());
-		return new ApiCheckResponse(result.isSafe(), result.findings(), result.improvedVersion());
+	public CheckResponse check(@Valid @RequestBody CheckRequest request,
+			@RequestAttribute(AuthInterceptor.CURRENT_USER) AppUser user) {
+		return complianceService.check(request.prompt(), user);
 	}
 }

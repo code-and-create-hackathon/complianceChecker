@@ -1,19 +1,23 @@
 package com.compliancechecker.controller;
 
-import com.compliancechecker.llm.LlmException;
 import com.compliancechecker.llm.InvalidNovaResponseException;
+import com.compliancechecker.llm.LlmException;
+import com.compliancechecker.model.ApiException;
 import com.compliancechecker.model.ErrorResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.CacheControl;
 import org.springframework.http.HttpStatus;
+import software.amazon.awssdk.awscore.exception.AwsServiceException;
+import software.amazon.awssdk.core.exception.SdkException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
-import software.amazon.awssdk.awscore.exception.AwsServiceException;
 
+import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.UUID;
@@ -21,8 +25,8 @@ import java.util.UUID;
 /**
  * Turns exceptions into {@link ErrorResponse}s.
  *
- * <p>LLM errors include their underlying message in the response for diagnosis. Logs contain only the error code,
- * field names and exception type.
+ * <p>Exception messages are never logged or returned, because parser messages can contain fragments of the prompt.
+ * Only the error code, field names and exception type are logged.
  */
 @RestControllerAdvice
 public class ApiExceptionHandler {
@@ -33,7 +37,7 @@ public class ApiExceptionHandler {
 	ResponseEntity<ErrorResponse> handleInvalidFields(MethodArgumentNotValidException ex) {
 		Map<String, String> fieldErrors = new TreeMap<>();
 		for (FieldError fieldError : ex.getBindingResult().getFieldErrors()) {
-			// Messages come from the annotations in CheckRequest and never contain the rejected value.
+			// Messages come from the validation annotations of the request records and never contain the rejected value.
 			fieldErrors.putIfAbsent(fieldError.getField(), fieldError.getDefaultMessage());
 		}
 		return respond(HttpStatus.BAD_REQUEST, "INVALID_REQUEST", "The request is invalid. See fieldErrors.",
@@ -46,45 +50,39 @@ public class ApiExceptionHandler {
 				"The request body is missing or is not valid JSON.", Map.of(), ex);
 	}
 
-	@ExceptionHandler(LlmException.class)
-	ResponseEntity<ErrorResponse> handleLlmFailure(LlmException ex) {
-		String code = "LLM_INVALID_RESPONSE";
-		String message = "Nova hat kein gültiges Prüfergebnis geliefert. Bitte erneut versuchen.";
-		if ("Simulated compliance result rejected by the live API.".equals(ex.getMessage())) {
-			code = "LLM_SIMULATED_RESULT";
-			message = "Ein Demo-Ergebnis wurde verworfen. Bitte starten Sie die Nova-Live-Version.";
-		} else if (ex.getCause() instanceof AwsServiceException aws) {
-			if (aws.statusCode() == 401 || aws.statusCode() == 403) {
-				code = "LLM_ACCESS_DENIED";
-				message = "AWS verweigert den Nova-Zugriff. Prüfe die Bedrock-Berechtigung und Zugangsdaten.";
-			} else {
-				code = "LLM_AWS_ERROR";
-				message = "Amazon Bedrock hat die Anfrage abgelehnt (HTTP " + aws.statusCode() + ").";
-			}
-		} else if (ex.getCause() instanceof software.amazon.awssdk.core.exception.SdkException) {
-			code = "LLM_CONNECTION_ERROR";
-			message = "Amazon Bedrock ist nicht erreichbar oder die Zugangsdaten sind ungültig.";
-		} else if ("Nova credentials have not been entered".equals(ex.getMessage())) {
-			code = "LLM_NOT_CONNECTED";
-			message = "Bitte zuerst die AWS-Zugangsdaten in der Nova-Konsole eingeben.";
-		}
-		if (!"LLM_SIMULATED_RESULT".equals(code)) {
-			Throwable cause = ex.getCause();
-			String details = cause != null && cause.getMessage() != null ? cause.getMessage() : ex.getMessage();
-			if (details != null && !details.isBlank()) {
-				message += " Details: " + details;
-			}
-		}
-		return respond(HttpStatus.BAD_GATEWAY, code, message, Map.of(), ex);
+	@ExceptionHandler(ApiException.class)
+	ResponseEntity<ErrorResponse> handleApiException(ApiException ex) {
+		return respond(ex.status(), ex.error(), ex.getMessage(), Map.of(), ex);
 	}
 
+	@ExceptionHandler(LlmException.class)
+	ResponseEntity<ErrorResponse> handleLlmFailure(LlmException ex) {
+		// userMessage() is a fixed text chosen by the type of the error, never the error's own message.
+		return respond(HttpStatus.BAD_GATEWAY, llmErrorCode(ex), ex.userMessage(), Map.of(), ex);
+	}
+
+	/** Error code by cause: AWS refused access, AWS rejected the call, AWS unreachable, or the code of the exception. */
+	static String llmErrorCode(LlmException ex) {
+		if (ex.getCause() instanceof AwsServiceException aws) {
+			return aws.statusCode() == 401 || aws.statusCode() == 403 ? "LLM_ACCESS_DENIED" : "LLM_AWS_ERROR";
+		}
+		if (ex.getCause() instanceof SdkException) {
+			return "LLM_CONNECTION_ERROR";
+		}
+		return ex.code();
+	}
+
+	/**
+	 * Nova reported no problems but changed the input, also on the retry: the check is incomplete. Answered with 200
+	 * and {@code verification: "incomplete"} so the page can show the unchecked output; the prompt is not approved.
+	 */
 	@ExceptionHandler(InvalidNovaResponseException.class)
-	ResponseEntity<Map<String, Object>> handleInvalidNovaResponse(InvalidNovaResponseException ex) {
+	ResponseEntity<Map<String, Object>> handleIncompleteCheck(InvalidNovaResponseException ex) {
 		String requestId = UUID.randomUUID().toString();
-		log.warn("requestId={} status=LLM_UNVERIFIED_RESPONSE exception={}", requestId, ex.getClass().getName());
-		return ResponseEntity.ok().cacheControl(org.springframework.http.CacheControl.noStore())
-				.body(Map.of("verification", "incomplete", "problems", java.util.List.of(),
-						"improvedVersion", ex.responseText(), "requestId", requestId));
+		log.warn("requestId={} status=LLM_UNVERIFIED_RESPONSE exception={}", requestId, ex.getClass().getSimpleName());
+		return ResponseEntity.ok().cacheControl(CacheControl.noStore())
+				.body(Map.of("verification", "incomplete", "isSafe", false, "problems", List.of(),
+						"improvedVersion", ex.responseText(), "message", ex.userMessage(), "requestId", requestId));
 	}
 
 	/** Keeps the status of Spring's own errors (404, 405, 415, ...); everything else becomes 500. */
@@ -103,7 +101,8 @@ public class ApiExceptionHandler {
 			Map<String, String> fieldErrors, Exception ex) {
 		String requestId = UUID.randomUUID().toString();
 		if (status.is5xxServerError()) {
-			log.error("requestId={} error={} exception={}", requestId, error, ex.getClass().getName());
+			String cause = ex.getCause() == null ? "-" : ex.getCause().getClass().getSimpleName();
+			log.error("requestId={} error={} exception={} cause={}", requestId, error, ex.getClass().getName(), cause);
 		}
 		else {
 			log.warn("requestId={} error={} fields={} exception={}", requestId, error, fieldErrors.keySet(),

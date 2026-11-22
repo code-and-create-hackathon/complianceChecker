@@ -1,6 +1,7 @@
 // Prompt field: character count, Ctrl/⌘ + Enter, error message.
 import { $, setFieldError } from "./dom.js";
 import { plural } from "../shared/format.js";
+import { charLength } from "../shared/validate.js";
 import { resetResult } from "./result_view.js";
 
 const promptInput = () => $("prompt");
@@ -29,8 +30,8 @@ export function focusPrompt() {
 }
 
 function updateCharCount() {
-  // Characters = Unicode code points as in API.md (an emoji counts as 1).
-  $("char-count").textContent = plural([...promptInput().value].length, "character", "characters");
+  // Counted like the API limit (API.md): UTF-16 code units, an emoji counts as 2.
+  $("char-count").textContent = plural(charLength(promptInput().value), "character", "characters");
 }
 
 /** @param {HTMLFormElement} form */

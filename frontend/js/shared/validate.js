@@ -4,15 +4,17 @@
 export const PROMPT_MAX_LENGTH = 20_000;
 export const COMPLIANCE_MAX_LENGTH = 500_000;
 
+/** Severities as in the compliance file; only "low" (a notice) still allows sending. */
+export const SEVERITIES = ["critical", "high", "medium", "low"];
+export const NOTICE_SEVERITY = "low";
+
 const PROBLEM_FIELDS = ["ruleId", "category", "severity", "message", "location"];
 
-export function isBlocking(problem) {
-  return problem.severity !== "low";
-}
-
-/** @typedef {{prompt: string, compliance: string}} CheckRequest */
+/** @typedef {{prompt: string}} CheckRequest  sent to the backend, which adds the published policy */
+/** @typedef {{prompt: string, compliance: string}} LocalCheckRequest  demo mode: checked in the browser */
 /**
- * @typedef {{ruleId: string, category: string}} Problem
+ * @typedef {{ruleId: string, category?: string, severity: "critical" | "high" | "medium" | "low",
+ *            message: string, location: string}} Problem  category: type of violation, e.g. "Customer data"
  */
 /** @typedef {{isSafe: boolean, problems: Problem[], improvedVersion: string}} CheckResponse */
 
@@ -36,9 +38,9 @@ function checkOnlyFields(obj, allowed, errors, prefix = "") {
   }
 }
 
-/** Length in Unicode characters (code points), not UTF-16 code units: an emoji counts as 1. */
+/** Length in UTF-16 code units, exactly like the backend (Java String.length()): an emoji counts as 2. */
 export function charLength(value) {
-  return [...value].length;
+  return value.length;
 }
 
 function checkText(obj, field, maxLength, errors) {
@@ -49,7 +51,12 @@ function checkText(obj, field, maxLength, errors) {
   else if (charLength(value) > maxLength) errors.push(`"${field}" must be at most ${maxLength} characters long.`);
 }
 
-/** Each problem identifies a violated compliance rule and its top-level category. */
+/** A problem blocks the prompt unless it is only a notice. */
+export function isBlocking(problem) {
+  return problem.severity !== NOTICE_SEVERITY;
+}
+
+/** Each problem: {ruleId, category?, severity, message, location}; category and location may be "". */
 function checkProblem(problem, i, errors) {
   const at = `problems[${i}]`;
   if (!isPlainObject(problem)) {
@@ -57,23 +64,20 @@ function checkProblem(problem, i, errors) {
     return;
   }
   checkOnlyFields(problem, PROBLEM_FIELDS, errors, `${at}.`);
-  const detailed = "severity" in problem || "message" in problem || "location" in problem;
-  for (const field of detailed ? ["ruleId", "severity", "message"] : ["ruleId", "category"]) {
+  for (const field of ["ruleId", "message"]) {
     if (typeof problem[field] !== "string" || problem[field].trim() === "") {
       errors.push(`"${at}.${field}" must be a non-empty string.`);
     }
   }
-  if (detailed && !["critical", "high", "medium", "low"].includes(problem.severity)) {
-    errors.push(`"${at}.severity" is invalid.`);
+  if (!SEVERITIES.includes(problem.severity)) {
+    errors.push(`"${at}.severity" must be one of ${SEVERITIES.map((s) => `"${s}"`).join(", ")}.`);
   }
-  if (detailed && typeof problem.location !== "string") errors.push(`"${at}.location" must be a string.`);
-  if ("category" in problem && (typeof problem.category !== "string" || !problem.category.trim())) {
-    errors.push(`"${at}.category" must be a non-empty string.`);
-  }
+  if (typeof problem.location !== "string") errors.push(`"${at}.location" must be a string ("" if none).`);
+  if ("category" in problem && typeof problem.category !== "string") errors.push(`"${at}.category" must be a string.`);
 }
 
 /**
- * Validates a client → server payload.
+ * Validates a client → server payload (POST /api/check).
  * @param {unknown} payload
  * @returns {CheckRequest}
  * @throws {ValidationError}
@@ -82,12 +86,30 @@ export function validateRequest(payload) {
   if (!isPlainObject(payload)) throw new ValidationError("request", ["The request must be a JSON object."]);
 
   const errors = [];
+  checkOnlyFields(payload, ["prompt"], errors);
+  checkText(payload, "prompt", PROMPT_MAX_LENGTH, errors);
+
+  if (errors.length) throw new ValidationError("request", errors);
+  return /** @type {CheckRequest} */ (payload);
+}
+
+/**
+ * Validates the input of a demo-mode check, which runs in the browser against locally uploaded rules.
+ * Also the limit for a policy the administrator publishes.
+ * @param {unknown} payload
+ * @returns {LocalCheckRequest}
+ * @throws {ValidationError}
+ */
+export function validateLocalRequest(payload) {
+  if (!isPlainObject(payload)) throw new ValidationError("request", ["The request must be a JSON object."]);
+
+  const errors = [];
   checkOnlyFields(payload, ["prompt", "compliance"], errors);
   checkText(payload, "prompt", PROMPT_MAX_LENGTH, errors);
   checkText(payload, "compliance", COMPLIANCE_MAX_LENGTH, errors);
 
   if (errors.length) throw new ValidationError("request", errors);
-  return /** @type {CheckRequest} */ (payload);
+  return /** @type {LocalCheckRequest} */ (payload);
 }
 
 /**
@@ -112,7 +134,7 @@ export function validateResponse(payload) {
     problems.forEach((problem, i) => checkProblem(problem, i, errors));
     const problemsValid = errors.length === countBefore;
     if (problemsValid && typeof payload.isSafe === "boolean" && payload.isSafe !== !problems.some(isBlocking)) {
-      errors.push(`"isSafe" must match the blocking problems.`);
+      errors.push(`"isSafe" must be true exactly when no problem has severity "critical", "high" or "medium".`);
     }
   }
 

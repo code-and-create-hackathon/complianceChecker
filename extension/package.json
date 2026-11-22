@@ -1,0 +1,19 @@
+{
+  "name": "compliance-checker-extension",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Compliance Checker Chrome extension",
+  "type": "module",
+  "scripts": {
+    "dev": "wxt",
+    "build": "wxt build",
+    "zip": "wxt zip",
+    "postinstall": "wxt prepare"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3",
+    "vite": "^8.1.5",
+    "web-ext": "^10.5.0",
+    "wxt": "^0.21.3"
+  }
+}

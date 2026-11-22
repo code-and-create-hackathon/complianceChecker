@@ -28,6 +28,7 @@ import java.util.stream.Collectors;
 import jakarta.annotation.PreDestroy;
 import com.compliancechecker.llm.BedrockLlmClient;
 import com.compliancechecker.llm.LlmException;
+import com.compliancechecker.service.SensitiveDataScanner;
 import com.compliancechecker.model.CheckResponse;
 import com.compliancechecker.history.SubmittedPrompt;
 import com.compliancechecker.history.SubmittedPromptRepository;
@@ -49,16 +50,19 @@ class BedrockNovaClient {
 	private volatile String lastOutcome = "unverified";
 	private volatile Long lastLatencyMs;
 	private final SubmittedPromptRepository prompts;
+	private final SensitiveDataScanner scanner;
 
 	BedrockNovaClient(@Value("${checker.bedrock-console.region:}") String region,
-			@Value("${checker.bedrock-console.model-id:}") String modelId, SubmittedPromptRepository prompts) {
+			@Value("${checker.bedrock-console.model-id:}") String modelId, SubmittedPromptRepository prompts,
+			SensitiveDataScanner scanner) {
 		if ((!region.isEmpty() && !region.matches(REGION_PATTERN))
 				|| (!modelId.isEmpty() && !modelId.matches("[a-zA-Z0-9._:-]+"))) {
-			throw new IllegalArgumentException("Ungültige Bedrock-Region oder Modell-ID.");
+			throw new IllegalArgumentException("Invalid Bedrock region or model id.");
 		}
 		this.configuredRegion = region;
 		this.configuredModelId = modelId;
 		this.prompts = prompts;
+		this.scanner = scanner;
 	}
 
 	Connection connect(String key, String secret, String sessionToken) {
@@ -93,11 +97,12 @@ class BedrockNovaClient {
 	}
 
 	synchronized CheckResponse check(String prompt, String rules) {
-		if (activeConnection == null) throw new LlmException("Nova credentials have not been entered");
+		if (activeConnection == null) throw notConnected();
 		prompts.save(new SubmittedPrompt(prompt));
 		long startNanos = System.nanoTime();
 		try {
-			CheckResponse result = new BedrockLlmClient(activeConnection.client(), activeConnection.modelId()).check(prompt, rules);
+			CheckResponse result = new BedrockLlmClient(activeConnection.client(), scanner, activeConnection.modelId())
+					.check(prompt, rules);
 			lastOutcome = "success";
 			return result;
 		} catch (RuntimeException ex) {
@@ -109,7 +114,7 @@ class BedrockNovaClient {
 	}
 
 	synchronized String sendPrompt(String prompt) throws IOException {
-		if (activeConnection == null) throw new LlmException("Nova credentials have not been entered");
+		if (activeConnection == null) throw notConnected();
 		prompts.save(new SubmittedPrompt(prompt));
 		long startNanos = System.nanoTime();
 		try {
@@ -122,6 +127,11 @@ class BedrockNovaClient {
 		} finally {
 			lastLatencyMs = (System.nanoTime() - startNanos) / 1_000_000;
 		}
+	}
+
+	private static LlmException notConnected() {
+		return new LlmException("Nova credentials have not been entered",
+				"Enter the AWS credentials in the Nova console first.", null, LlmException.NOT_CONNECTED);
 	}
 
 	Connection currentConnection() {
@@ -175,7 +185,7 @@ class BedrockNovaClient {
 	static final class UnsupportedNovaRegionException extends IllegalArgumentException {
 
 		UnsupportedNovaRegionException(String region) {
-			super("Nova Micro ist in " + region + " nicht verfügbar.");
+			super("Nova Micro is not available in " + region + ".");
 		}
 	}
 
@@ -187,14 +197,14 @@ class BedrockNovaClient {
 					.inferenceConfig(config -> config.maxTokens(512)));
 			var message = response.output() == null ? null : response.output().message();
 			if (message == null) {
-				throw new IOException("Bedrock hat keinen Antworttext geliefert.");
+				throw new IOException("Bedrock returned no answer text.");
 			}
 			String answer = message.content().stream()
 					.map(ContentBlock::text)
 					.filter(Objects::nonNull)
 					.collect(Collectors.joining());
 			if (answer.isEmpty()) {
-				throw new IOException("Bedrock hat keinen Antworttext geliefert.");
+				throw new IOException("Bedrock returned no answer text.");
 			}
 			return answer;
 		}

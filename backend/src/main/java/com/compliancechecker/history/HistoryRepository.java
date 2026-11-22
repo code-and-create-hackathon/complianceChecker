@@ -7,4 +7,6 @@ import java.util.List;
 public interface HistoryRepository extends JpaRepository<HistoryEntry, Long> {
 
 	List<HistoryEntry> findTop100ByOrderByCreatedAtDescIdDesc();
+
+	List<HistoryEntry> findTop100ByUsernameOrderByCreatedAtDescIdDesc(String username);
 }

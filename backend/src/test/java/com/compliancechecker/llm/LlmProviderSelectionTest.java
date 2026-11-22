@@ -16,8 +16,25 @@ class LlmProviderSelectionTest {
 			.withPropertyValues("llm.model-id=test-model", "llm.aws-region=eu-north-1");
 
 	@Test
-	void usesMockByDefaultAndCreatesNoAwsClient() {
+	void usesBedrockWhenNothingIsConfigured() {
 		contextRunner.run(context -> {
+			assertThat(context).hasSingleBean(LlmClient.class);
+			assertThat(context.getBean(LlmClient.class)).isInstanceOf(BedrockLlmClient.class);
+			assertThat(context).hasSingleBean(BedrockRuntimeClient.class);
+		});
+	}
+
+	@Test
+	void usesBedrockWhenConfigured() {
+		contextRunner.withPropertyValues("llm.provider=bedrock").run(context -> {
+			assertThat(context).hasSingleBean(LlmClient.class);
+			assertThat(context.getBean(LlmClient.class)).isInstanceOf(BedrockLlmClient.class);
+		});
+	}
+
+	@Test
+	void mockOnlyWhenExplicitlySelectedAndThenNoAwsClientExists() {
+		contextRunner.withPropertyValues("llm.provider=mock").run(context -> {
 			assertThat(context).hasSingleBean(LlmClient.class);
 			assertThat(context.getBean(LlmClient.class)).isInstanceOf(MockLlmClient.class);
 			assertThat(context).doesNotHaveBean(BedrockRuntimeClient.class);
@@ -25,10 +42,10 @@ class LlmProviderSelectionTest {
 	}
 
 	@Test
-	void usesBedrockOnlyWhenConfigured() {
-		contextRunner.withPropertyValues("llm.provider=bedrock").run(context -> {
-			assertThat(context).hasSingleBean(LlmClient.class);
-			assertThat(context.getBean(LlmClient.class)).isInstanceOf(BedrockLlmClient.class);
+	void unknownProviderDoesNotFallBackToMock() {
+		contextRunner.withPropertyValues("llm.provider=typo").run(context -> {
+			assertThat(context).doesNotHaveBean(LlmClient.class);
+			assertThat(context).doesNotHaveBean(MockLlmClient.class);
 		});
 	}
 }

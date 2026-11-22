@@ -6,14 +6,17 @@ import com.compliancechecker.service.SensitiveDataScanner.ScanResult;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.stereotype.Component;
 
 /**
- * Simulated compliance check for local development and demos without AWS, based on {@link SensitiveDataScanner}.
+ * Simulated compliance check for offline demos without AWS, based on {@link SensitiveDataScanner}. Only active when
+ * explicitly selected with {@code llm.provider=mock} (env {@code LLM_PROVIDER=mock}); the default is Bedrock.
  *
  * <p>This is not a real compliance check: it ignores the uploaded compliance rules and only finds the scanner's
- * patterns. Every result is marked with {@code simulated = true}.
+ * patterns. API.md allows no extra field to mark this, so it is stated in the log and the README.
  */
-@ConditionalOnProperty(name = "llm.provider", havingValue = "mock", matchIfMissing = true)
+@Component
+@ConditionalOnProperty(name = "llm.provider", havingValue = "mock")
 public class MockLlmClient implements LlmClient {
 
 	private static final Logger log = LoggerFactory.getLogger(MockLlmClient.class);
@@ -28,12 +31,9 @@ public class MockLlmClient implements LlmClient {
 	@Override
 	public CheckResponse check(String prompt, String complianceRules) {
 		ScanResult scan = scanner.scan(prompt);
-		if (!scan.foundSensitiveData()) {
-			// API contract: "" means no suggestion.
-			return new CheckResponse(true, scan.problems(), scan.categories(), "", true);
-		}
-		return new CheckResponse(false, scan.problems(), scan.categories(), scan.redactedText(), true,
-				scanner.findings(prompt));
+		CheckResponse withSuggestion = new CheckResponse(scan.problems(), scan.redactedText());
+		// API.md: "" = no suggestion; like the frontend's demo mode, only unsafe prompts get one.
+		return withSuggestion.isSafe() ? new CheckResponse(scan.problems(), "") : withSuggestion;
 	}
 
 	@Override

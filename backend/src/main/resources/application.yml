@@ -20,10 +20,25 @@ spring:
     show-sql: false
 
 llm:
+  # "bedrock" (default): live check with Amazon Nova via Bedrock (credentials from the AWS default chain, e.g. AWS_PROFILE).
+  # "nova": Nova console client (with checker.bedrock-console.enabled=true, see Start-NovaConsole.ps1).
+  # "mock": tests and offline development only, no AWS calls. Never a silent fallback.
   provider: "${LLM_PROVIDER:bedrock}"
   # Bedrock only. Amazon Nova 2 Lite via the EU geo inference profile (no in-region access in eu-north-1).
   model-id: "${LLM_MODEL_ID:eu.amazon.nova-2-lite-v1:0}"
   aws-region: "${AWS_REGION:eu-north-1}"
+
+auth:
+  # DEMO AUTHENTICATION, see AuthService. TODO(security): replace with the company's identity provider (e.g. Cognito).
+  # Workers log in by username only. The administrator is created at startup and also needs ADMIN_CODE
+  # (no default on purpose: without it the admin cannot log in). Use a long random value and keep it out of git.
+  admin-username: "${ADMIN_USERNAME:admin}"
+  admin-code: "${ADMIN_CODE:}"
+  session-hours: 12
+
+cors:
+  # Origins allowed to call /api/** from another origin, e.g. the browser extension. Comma-separated patterns.
+  allowed-origin-patterns: "${CORS_ALLOWED_ORIGINS:chrome-extension://*}"
 
 server:
   port: ${PORT:8080}

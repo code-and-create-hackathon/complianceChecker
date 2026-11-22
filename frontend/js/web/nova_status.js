@@ -6,7 +6,7 @@ let checking = false;
 function formatLatency(milliseconds) {
   return milliseconds < 1000
     ? `${milliseconds} ms`
-    : `${(milliseconds / 1000).toLocaleString("de-DE", { maximumFractionDigits: 1 })} s`;
+    : `${(milliseconds / 1000).toLocaleString("en-GB", { maximumFractionDigits: 1 })} s`;
 }
 
 async function updateStatus() {
@@ -17,34 +17,37 @@ async function updateStatus() {
       cache: "no-store",
       signal: AbortSignal.timeout(7000),
     });
-    if (!response.ok) throw new Error("Status nicht verfügbar");
+    if (!response.ok) throw new Error("Status not available");
     const data = await response.json();
-    if (data.connection === "not_configured") {
-      status.textContent = "Nova: Zugangsdaten fehlen";
+    if (data.connection === "mock") {
+      status.textContent = "Mock mode · no Nova";
+      status.dataset.state = "waiting";
+    } else if (data.connection === "not_configured") {
+      status.textContent = "Nova: credentials missing";
       status.dataset.state = "waiting";
     } else if (data.connection === "unreachable") {
-      status.textContent = "AWS nicht erreichbar";
+      status.textContent = "AWS not reachable";
       status.dataset.state = "error";
     } else if (data.connection === "reachable" && data.lastOutcome === "success") {
       const latency = Number.isSafeInteger(data.lastLatencyMs) && data.lastLatencyMs >= 0
         ? ` · ${formatLatency(data.lastLatencyMs)}`
         : "";
-      status.textContent = `Nova zuletzt erfolgreich${latency}`;
+      status.textContent = `Nova last call succeeded${latency}`;
       status.dataset.state = "ok";
     } else if (data.connection === "reachable" && data.lastOutcome === "failed") {
       const latency = Number.isSafeInteger(data.lastLatencyMs) && data.lastLatencyMs >= 0
         ? ` · ${formatLatency(data.lastLatencyMs)}`
         : "";
-      status.textContent = `Nova-Aufruf fehlgeschlagen${latency}`;
+      status.textContent = `Nova call failed${latency}`;
       status.dataset.state = "error";
     } else if (data.connection === "reachable" && data.lastOutcome === "unverified") {
-      status.textContent = "AWS erreichbar · Nova noch nicht aufgerufen";
+      status.textContent = "AWS reachable · Nova not called yet";
       status.dataset.state = "waiting";
     } else {
-      throw new Error("Unbekannter Status");
+      throw new Error("Unknown status");
     }
   } catch {
-    status.textContent = "Nova-Status nicht verfügbar";
+    status.textContent = "Nova status not available";
     status.dataset.state = "error";
   } finally {
     checking = false;
